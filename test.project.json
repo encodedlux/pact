@@ -1,0 +1,13 @@
+{
+    "name": "Pact-test",
+    "emitLegacyScripts": false,
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "pact": {
+                "$path": "src"
+            },
+            "$path": "tests/roblox"
+        }
+    }
+}

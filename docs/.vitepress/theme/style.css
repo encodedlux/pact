@@ -1,0 +1,140 @@
+@import "../../node_modules/vitepress-theme-api/dist/style.css";
+
+/**
+ * Component: Home
+ * -------------------------------------------------------------------------- */
+
+.VPContent:has(.VPHome) {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.VPHome>.vp-doc {
+    margin-top: 1rem;
+}
+
+:root {
+    counter-reset: masonry;
+}
+
+@media (min-width: 640px) {
+    :root {
+        --vp-home-hero-image-filter: blur(56px);
+    }
+}
+
+@media (min-width: 960px) {
+    :root {
+        --vp-home-hero-image-filter: blur(72px);
+    }
+}
+
+/**
+  * Component VPDoc
+  * -------------------------------------------------------------------------- */
+.content-container {
+    max-width: 100% !important;
+}
+
+/**
+  * Component Grouping
+  * -------------------------------------------------------------------------- */
+.flex {
+    columns: 3 4px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    gap: 0px;
+}
+
+@media only screen and (max-width: 1140px) {
+    .flex {
+        columns: 2 4px;
+    }
+}
+
+
+@media only screen and (max-width: 640px) {
+    .flex {
+        columns: 1 4px;
+    }
+}
+
+.grouping {
+    background-color: var(--vp-c-gray-soft);
+    padding: 1rem 1rem 0.25rem;
+    margin: 0px 4px 8px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-grow: 1;
+
+    text-align: left;
+}
+
+.grouping>ul {
+    list-style-type: square !important;
+}
+
+.grouping>h2 {
+    margin: 0px !important;
+    border-top: 0px !important;
+    padding-top: 0px !important;
+}
+
+.grouping>ul>li>a {
+    text-decoration: none !important;
+}
+
+.grouping>h2>a {
+    text-decoration: none !important;
+}
+
+/**
+  * Component Button
+  * -------------------------------------------------------------------------- */
+.VPButton {
+    border-radius: 4px !important;
+    margin-right: 4px;
+}
+
+.DocSearch-Button {
+    border-radius: 4px !important;
+}
+
+/**
+  * Component VPFeature
+  * -------------------------------------------------------------------------- */
+.VPFeature {
+    border-radius: 6px !important;
+}
+
+/**
+  * Component Pager
+  * -------------------------------------------------------------------------- */
+.pager-link {
+    border-radius: 6px !important;
+}
+
+/**
+  * Component Plugin
+  * -------------------------------------------------------------------------- */
+.plugin-tabs {
+    border-radius: 6px !important;
+}
+
+:root {
+    --vp-plugin-tabs-tab-bg: var(--vp-c-bg-soft) !important
+}
+
+/**
+  * Component Language
+  * -------------------------------------------------------------------------- */
+div[class*="language-"] {
+    border-radius: 6px !important;
+}
+
+.VPHomeHero .VPImage {
+    width: 100%;
+    height: 100%;
+}

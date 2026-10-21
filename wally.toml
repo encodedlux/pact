@@ -1,0 +1,17 @@
+[package]
+name = "encodedlux/pact"
+description = "A modern & declarative buffer networking."
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+exclude = ["**"]
+include = [
+    "wally.toml",
+    "README.md",
+    "LICENSE",
+    "src",
+    "src/**",
+    "default.project.json",
+]
+
+[dependencies]

@@ -1,7 +1,7 @@
 {
   "type": "module",
   "devDependencies": {
-    "@nolebase/vitepress-plugin-highlight-targeted-heading": "^2.21.1",
+    "@nolebase/vitepress-plugin-highlight-targeted-heading": "2.18.2",
     "vitepress": "1.6.4",
     "vitepress-plugin-tabs": "^0.9.1",
     "vitepress-theme-api": "^0.1.7"

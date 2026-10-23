@@ -181,14 +181,14 @@ print(coins)
 
 The state passes its current value to the value getter.
 
-### Using Computed
+### Using Selectors
 
-Use `computed()` to create a cached value getter for expensive or frequently reused transformations.
+Use `selector()` to create a cached value selection for expensive or frequently reused transformations.
 
 Consider calculating a leaderboard directly:
 
 ```luau
-const function get_top_coins(state)
+const function select_top_coins(state)
     -- This creates a new table every time the function is called
     const sorted = {}
 
@@ -207,7 +207,7 @@ const function get_top_coins(state)
 end
 
 const function display_top_coins()
-    for rank, data in net_server.accounts.get(get_top_coins) do
+    for rank, data in net_server.accounts.get(select_top_coins) do
         print(`Rank: {rank}, Player: {data.player.Name}, Coins: {data.coins}`)
     end
 end
@@ -216,12 +216,12 @@ display_top_coins() -- creates a new table and sorts it
 display_top_coins() -- creates a new table and sorts it - 2x
 ```
 
-Every call to `get_top_coins()` creates a new table and sorts it again, even when `accounts` has not changed.
+Every call to `select_top_coins()` creates a new table and sorts it again, even when `accounts` has not changed.
 
-With `computed()`, the result is cached:
+With `selector()`, the result is cached:
 
 ```luau
-const get_top_coins = net_server.accounts.computed(function(state)
+const select_top_coins = net_server.accounts.selector(function(state)
     const sorted = {}
 
     for player, data in state do
@@ -239,7 +239,7 @@ const get_top_coins = net_server.accounts.computed(function(state)
 end)
 
 const function display_top_coins()
-    for rank, data in net_server.accounts.get(get_top_coins) do
+    for rank, data in net_server.accounts.get(select_top_coins) do
         print(`Rank: {rank}, Player: {data.player.Name}, Coins: {data.coins}`)
     end
 end
@@ -248,18 +248,18 @@ display_top_coins() -- Computes the leaderboard
 display_top_coins() -- Reuses the cached result
 ```
 
-The computed value is recomputed when the state changes, or when the value getter passed as the first argument changes.
+The selector value is recomputed when the state changes, or when the selector passed as the first argument changes.
 
 ```luau
-const function get_player_coins(player: Player)
+const function select_player_coins(player: Player)
     return function(state)
         return state[player].coins
     end
 end
 
-const get_coins = get_player_coins(player)
+const select_coins = select_player_coins(player)
 
-const get_double_coins = net_server.accounts.computed(get_coins, function(coins)
+const select_double_coins = net_server.accounts.selector(select_coins, function(coins)
     return coins * 2
 end)
 ```

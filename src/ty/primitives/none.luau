@@ -1,10 +1,10 @@
 const create = require("../create")
 
 return create<<nil>>({
-	write = @native function(buff, offset, value)
+	write = function()
 		return 0
 	end,
-	read = @native function(buff, offset)
+	read = function()
 		return 0, nil
 	end,
 	size = 0,

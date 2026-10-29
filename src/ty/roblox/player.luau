@@ -1,18 +1,39 @@
 const Players = game:GetService("Players")
 
-const constants = require("../../constants")
 const create = require("../create")
 
-const DOUBLE = constants.DOUBLE
-const writef64, readf64 = buffer.writef64, buffer.readf64
-
 return create<<Player>>({
-	write = @native function(buff, offset, player)
-		writef64(buff, offset, player.UserId)
-		return DOUBLE
+	write = function(buff, offset, player)
+		const id = player.UserId
+		buffer.writef64(buff, offset, if id == id and id == math.round(id) then id else 0)
+		return 8
 	end,
-	read = @native function(buff, offset)
-		return DOUBLE, Players:GetPlayerByUserId(readf64(buff, offset)) :: any
+	read = function(buff, offset)
+		const id = buffer.readf64(buff, offset)
+		return 8, Players:GetPlayerByUserId(if id == id and id == math.round(id) then id else 0) :: Player
 	end,
-	size = DOUBLE,
+	write_array = function(buff, offset, players)
+		const len = #players
+		buffer.writeu16(buff, offset, len)
+		local pos = offset + 2
+		for i = 1, len do
+			const player = players[i]
+			const id = player.UserId
+			buffer.writef64(buff, pos, if id == id and id == math.round(id) then id else 0)
+			pos += 8
+		end
+		return pos - offset
+	end,
+	read_array = function(buff, offset)
+		const len = buffer.readu16(buff, offset)
+		const value = table.create<<Player>>(len)
+		local pos = offset + 2
+		for i = 1, len do
+			const id = buffer.readf64(buff, pos)
+			value[i] = Players:GetPlayerByUserId(if id == id and id == math.round(id) then id else 0) :: Player
+			pos += 8
+		end
+		return pos - offset, value
+	end,
+	size = 8,
 })

@@ -1,17 +1,35 @@
-const create = require("../create")
 const constants = require("../../constants")
+const create = require("../create")
 
 const INTEGER = constants.INTEGER
 
-const writei32, readi32 = buffer.writei32, buffer.readi32
-
 return create<<number>>({
-	write = @native function(buff, offset, value)
-		writei32(buff, offset, value)
+	write = function(buff, offset, value)
+		buffer.writei32(buff, offset, value)
 		return INTEGER
 	end,
-	read = @native function(buff, offset)
-		return INTEGER, readi32(buff, offset)
+	read = function(buff, offset)
+		return INTEGER, buffer.readi32(buff, offset)
+	end,
+	write_array = function(buff, offset, value)
+		const len = #value
+		buffer.writeu16(buff, offset, len)
+		local pos = offset + 2
+		for i = 1, len do
+			buffer.writei32(buff, pos, value[i])
+			pos += INTEGER
+		end
+		return pos - offset
+	end,
+	read_array = function(buff, offset)
+		const len = buffer.readu16(buff, offset)
+		const value = table.create<<number>>(len)
+		local pos = offset + 2
+		for i = 1, len do
+			value[i] = buffer.readi32(buff, pos)
+			pos += INTEGER
+		end
+		return pos - offset, value
 	end,
 	size = INTEGER,
 })

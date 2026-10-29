@@ -7,8 +7,8 @@ const ReplicatedStorage = game:GetService("ReplicatedStorage")
 const RunService = game:GetService("RunService")
 
 const constants = require("../constants")
-const t = require("../types")
 const serdes = require("./serdes")
+const t = require("../types")
 
 type BufferSave = t.BufferSave
 type DataType = t.DataType
@@ -154,7 +154,7 @@ const function transport(namespace: string, auto_flush: boolean?): Transport
 				warn(`[{ROOT_SCOPE_NAME}]: Unknown event ID {id} received.`)
 				break
 			end
-			offset += run_dispatch(id, player, read_fn(buff, offset, refs :: { [any]: any }))
+			offset += run_dispatch(id, player, read_fn(buff, offset, refs))
 		end
 	end
 

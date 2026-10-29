@@ -1,24 +1,44 @@
 const create = require("../create")
-const constants = require("../../constants")
-
-const SHORT = constants.SHORT
-
-const writeu16, readu16, writestring, readstring =
-	buffer.writeu16, buffer.readu16, buffer.writestring, buffer.readstring
-const string_len = string.len
 
 return create<<string>>({
-	write = @native function(buff, offset, value)
-		const len = string_len(value)
-		writeu16(buff, offset, len)
-		writestring(buff, offset + SHORT, value)
-		return SHORT + len
+	write = function(buff, offset, value)
+		const len = #value
+		buffer.writeu16(buff, offset, len)
+		buffer.writestring(buff, offset + 2, value, len)
+		return 2 + len
 	end,
-	read = @native function(buff, offset)
-		const len = readu16(buff, offset)
-		return SHORT + len, readstring(buff, offset + SHORT, len)
+	read = function(buff, offset)
+		const len = buffer.readu16(buff, offset)
+		if offset + 2 + len > buffer.len(buff) then
+			return 2, ""
+		end
+		return 2 + len, buffer.readstring(buff, offset + 2, len)
 	end,
-	size = @native function(value: string)
-		return SHORT + string_len(value)
+	write_array = function(buff, offset, value)
+		const len = #value
+		buffer.writeu16(buff, offset, len)
+		local pos = offset + 2
+		for i = 1, len do
+			const v = value[i]
+			const str_len = #v
+			buffer.writeu16(buff, pos, str_len)
+			buffer.writestring(buff, pos + 2, v, str_len)
+			pos += str_len + 2
+		end
+		return pos - offset
+	end,
+	read_array = function(buff, offset)
+		const len = buffer.readu16(buff, offset)
+		const value = table.create<<string>>(len)
+		local pos = offset + 2
+		for i = 1, len do
+			const str_len = buffer.readu16(buff, pos)
+			value[i] = buffer.readstring(buff, pos + 2, str_len)
+			pos += str_len + 2
+		end
+		return pos - offset, value
+	end,
+	size = function(value: string)
+		return 2 + #value
 	end,
 })

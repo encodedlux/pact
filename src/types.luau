@@ -1,5 +1,5 @@
-const constants = require("./constants")
 const casing = require("./util/casing")
+const constants = require("./constants")
 
 export type EventCall = keyof<index<index<constants.Constants, "call">, "values">>
 export type Case = casing.Case
@@ -10,6 +10,9 @@ export type DataType<T = unknown> = {
 	read write: (buff: buffer, offset: number, value: T, refs: { [any]: any }) -> number,
 	read read: (buff: buffer, offset: number, refs: { [any]: any }) -> (number, T),
 	read size: number | (value: T) -> number,
+	read write_array: ((buff: buffer, offset: number, value: { T }, refs: { [any]: any }) -> number)?,
+	read read_array: ((buff: buffer, offset: number, refs: { [any]: any }) -> (number, { T }))?,
+	read size_array: ((value: { T }) -> number)?,
 }
 
 export type Infer<T> = index<T, "infer">

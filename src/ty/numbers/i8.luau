@@ -1,17 +1,35 @@
-const create = require("../create")
 const constants = require("../../constants")
+const create = require("../create")
 
 const BYTE = constants.BYTE
 
-const writei8, readi8 = buffer.writei8, buffer.readi8
-
 return create<<number>>({
-	write = @native function(buff, offset, value)
-		writei8(buff, offset, value)
+	write = function(buff, offset, value)
+		buffer.writei8(buff, offset, value)
 		return BYTE
 	end,
-	read = @native function(buff, offset)
-		return BYTE, readi8(buff, offset)
+	read = function(buff, offset)
+		return BYTE, buffer.readi8(buff, offset)
+	end,
+	write_array = function(buff, offset, value)
+		const len = #value
+		buffer.writeu16(buff, offset, len)
+		local pos = offset + 2
+		for i = 1, len do
+			buffer.writei8(buff, pos, value[i])
+			pos += BYTE
+		end
+		return pos - offset
+	end,
+	read_array = function(buff, offset)
+		const len = buffer.readu16(buff, offset)
+		const value = table.create<<number>>(len)
+		local pos = offset + 2
+		for i = 1, len do
+			value[i] = buffer.readi8(buff, pos)
+			pos += BYTE
+		end
+		return pos - offset, value
 	end,
 	size = BYTE,
 })

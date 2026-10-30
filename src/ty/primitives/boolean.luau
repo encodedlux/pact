@@ -45,4 +45,10 @@ return create<<boolean>>({
 	size_array = function(value)
 		return 2 + math.floor((#value + 7) / 8)
 	end,
+	parse = function(value)
+		if typeof(value) ~= "boolean" then
+			return false, "value must be a boolean"
+		end
+		return true, nil
+	end,
 })

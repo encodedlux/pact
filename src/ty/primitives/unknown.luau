@@ -11,4 +11,7 @@ return create<<unknown>>({
 		return 0, refs[refs.cursor]
 	end,
 	size = 0,
+	parse = function(value)
+		return true, nil
+	end,
 })

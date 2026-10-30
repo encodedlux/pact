@@ -36,4 +36,10 @@ return create<<Player>>({
 		return pos - offset, value
 	end,
 	size = 8,
+	parse = function(value)
+		if typeof(value) ~= "Instance" or not value:IsA("Player") then
+			return false, "value must be a Player"
+		end
+		return true, nil
+	end,
 })

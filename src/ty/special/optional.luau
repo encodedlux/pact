@@ -13,6 +13,7 @@ const function optional<T>(value_type: T)
 	const value_write = value_type.write
 	const value_read = value_type.read
 	const value_size = value_type.size :: any
+	const value_parse = value_type.parse
 	const fixed_size = type(value_size) == "number"
 
 	return create<<Infer<T>?>>({
@@ -31,6 +32,15 @@ const function optional<T>(value_type: T)
 		end,
 		size = function(value)
 			return if value == nil then BYTE else BYTE + if fixed_size then value_size else value_size(value)
+		end,
+		parse = function(value)
+			if value == nil then
+				return true, nil
+			end
+			if value_parse then
+				return value_parse(value)
+			end
+			return true, nil
 		end,
 	})
 end

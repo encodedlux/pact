@@ -64,6 +64,12 @@ const function enum<T>(comma_string: T | "" | auto_complete_comma<T>)
 			return pos - offset, value
 		end,
 		size = 1,
+		parse = function(value)
+			if typeof(value) ~= "string" or not value_map[value] then
+				return false, `value '{tostring(value)}' is not a valid enum variant`
+			end
+			return true, nil
+		end,
 	})
 end
 

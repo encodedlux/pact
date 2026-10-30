@@ -41,4 +41,10 @@ return create<<string>>({
 	size = function(value: string)
 		return 2 + #value
 	end,
+	parse = function(value)
+		if typeof(value) ~= "string" then
+			return false, "value must be a string"
+		end
+		return true, nil
+	end,
 })

@@ -1,6 +1,6 @@
-const constants = require("../../constants")
-const create = require("../create")
-const types = require("../../types")
+const constants = require("../../../constants")
+const create = require("../../create")
+const types = require("../../../types")
 
 type DataType<T> = types.DataType<T>
 type Infer<T> = types.Infer<T>
@@ -16,6 +16,7 @@ const function array<T>(value_type: T)
 	const value_write_array = value_type.write_array
 	const value_read_array = value_type.read_array
 	const value_size_array = value_type.size_array
+	const value_parse = value_type.parse
 
 	const size_fn: (value: { Infer<T> }) -> number = value_size_array
 		or if type(value_size) == "number"
@@ -60,6 +61,21 @@ const function array<T>(value_type: T)
 			return pos - offset, array
 		end,
 		size = size_fn,
+		parse = function(array)
+			if typeof(array) ~= "table" then
+				return false, "value must be an table/array"
+			end
+			const len = #array
+			if len > 0 and value_parse then
+				for i = 1, len do
+					const ok, err = value_parse(array[i])
+					if not ok then
+						return false, `array element {i} is invalid: {err}`
+					end
+				end
+			end
+			return true, nil
+		end,
 	})
 end
 

@@ -1,5 +1,6 @@
 const constants = require("../../constants")
 const create = require("../create")
+const range = require("./range")
 
 const SHORT = constants.SHORT
 
@@ -32,4 +33,5 @@ return create<<number>>({
 		return pos - offset, value
 	end,
 	size = SHORT,
+	parse = range.parse_integer({ min = -32_768, max = 32_767 }),
 })

@@ -43,4 +43,10 @@ return create<<Vector2>>({
 		return pos - offset, value
 	end,
 	size = 8,
+	parse = function(value)
+		if typeof(value) ~= "Vector2" then
+			return false, "value must be a Vector2"
+		end
+		return true, nil
+	end,
 })

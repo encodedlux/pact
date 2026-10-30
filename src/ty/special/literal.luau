@@ -19,6 +19,12 @@ const function literal<T>(literal_value: T): DataType<T>
 			return 0, literal_value
 		end,
 		size = 0,
+		parse = function(value)
+			if value ~= literal_value then
+				return false, `value does not match literal '{tostring(literal_value)}'`
+			end
+			return true, nil
+		end,
 	})
 end
 

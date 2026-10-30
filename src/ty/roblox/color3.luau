@@ -40,4 +40,10 @@ return create<<Color3>>({
 		return pos - offset, value
 	end,
 	size = 3,
+	parse = function(value)
+		if typeof(value) ~= "Color3" then
+			return false, "value must be a Color3"
+		end
+		return true, nil
+	end,
 })

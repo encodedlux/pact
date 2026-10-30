@@ -13,6 +13,7 @@ export type DataType<T = unknown> = {
 	read write_array: ((buff: buffer, offset: number, value: { T }, refs: { [any]: any }) -> number)?,
 	read read_array: ((buff: buffer, offset: number, refs: { [any]: any }) -> (number, { T }))?,
 	read size_array: ((value: { T }) -> number)?,
+	read parse: ((value: T) -> (boolean, string?))?,
 }
 
 export type Infer<T> = index<T, "infer">

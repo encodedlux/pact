@@ -19,4 +19,10 @@ return create<<buffer>>({
 	size = function(value: buffer)
 		return 2 + buffer.len(value)
 	end,
+	parse = function(value)
+		if typeof(value) ~= "buffer" then
+			return false, "value must be a buffer"
+		end
+		return true, nil
+	end,
 })

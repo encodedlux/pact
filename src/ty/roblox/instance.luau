@@ -13,4 +13,10 @@ return create<<Instance>>({
 		return 0, instance
 	end,
 	size = 0,
+	parse = function(value)
+		if typeof(value) ~= "Instance" then
+			return false, "value must be an Instance"
+		end
+		return true, nil
+	end,
 })

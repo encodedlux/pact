@@ -1,5 +1,6 @@
 const constants = require("../../constants")
 const create = require("../create")
+const range = require("./range")
 
 const INTEGER = constants.INTEGER
 
@@ -32,4 +33,5 @@ return create<<number>>({
 		return pos - offset, value
 	end,
 	size = INTEGER,
+	parse = range.parse_integer({ min = 0, max = 4_294_967_295 }),
 })

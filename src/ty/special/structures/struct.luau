@@ -1,5 +1,5 @@
-const create = require("../create")
-const types = require("../../types")
+const create = require("../../create")
+const types = require("../../../types")
 
 type DataType<T = any> = types.DataType<T>
 type InferFromFields<T> = types.InferFromFields<T>
@@ -17,11 +17,13 @@ const function struct<T>(fields: T)
 	const writes = table.create<<any>>(count)
 	const reads = table.create<<any>>(count)
 	const sizes = table.create<<any>>(count)
+	const parses = table.create<<any>>(count)
 
 	for idx, key in keys do
 		writes[idx] = fields[key].write
 		reads[idx] = fields[key].read
 		sizes[idx] = fields[key].size
+		parses[idx] = fields[key].parse
 	end
 
 	local fixed_total = 0
@@ -64,6 +66,21 @@ const function struct<T>(fields: T)
 			return tbl :: any
 		end,
 		size = size_fn,
+		parse = function(value)
+			if typeof(value) ~= "table" then
+				return false, "value must be a table/struct"
+			end
+			for i = 1, #keys do
+				const parse_fn = parses[i]
+				if parse_fn then
+					const ok, err = parse_fn((value :: any)[keys[i]])
+					if not ok then
+						return false, `field '{keys[i]}' is invalid: {err}`
+					end
+				end
+			end
+			return true, nil
+		end,
 	})
 end
 

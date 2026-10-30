@@ -1,5 +1,6 @@
 const constants = require("../../constants")
 const create = require("../create")
+const range = require("./range")
 
 const DOUBLE = constants.DOUBLE
 
@@ -39,4 +40,5 @@ return create<<number>>({
 		return pos - offset, value
 	end,
 	size = DOUBLE,
+	parse = range.parse_float(),
 })

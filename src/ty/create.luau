@@ -9,14 +9,17 @@ const function create<T>(props: {
 	write_array: index<DataType<T>, "write_array">?,
 	read_array: index<DataType<T>, "read_array">?,
 	size_array: index<DataType<T>, "size_array">?,
+	parse: index<DataType<T>, "parse">?,
 }): DataType<T>
 	return {
 		infer = (nil :: any) :: T,
 		write = props.write,
 		read = props.read,
+		size = props.size,
 		write_array = props.write_array,
 		read_array = props.read_array,
-		size = props.size,
+		size_array = props.size_array,
+		parse = props.parse,
 	}
 end
 

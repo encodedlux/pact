@@ -1,5 +1,6 @@
 const constants = require("../../constants")
 const create = require("../create")
+const range = require("./range")
 
 const HALF_FLOAT = constants.HALF_FLOAT
 
@@ -53,4 +54,5 @@ return create<<number>>({
 		end
 	end,
 	size = HALF_FLOAT,
+	parse = range.parse_float({ min = -65_504, max = 65_504 }),
 })

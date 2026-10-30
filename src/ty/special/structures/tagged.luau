@@ -1,7 +1,7 @@
-const constants = require("../../constants")
-const create = require("../create")
+const constants = require("../../../constants")
+const create = require("../../create")
 const struct = require("./struct")
-const t = require("../../types")
+const t = require("../../../types")
 
 type DataType<T = any> = t.DataType<T>
 type InferFromFields<T> = t.InferFromFields<T>
@@ -47,6 +47,7 @@ const function tagged<T>(definition: T)
 	const struct_writes = table.create<<index<DataType, "write">>>(length)
 	const struct_reads = table.create<<index<DataType, "read">>>(length)
 	const struct_sizes = table.create<<any>>(length)
+	const struct_parses = table.create<<index<DataType, "parse">>>(length)
 	const struct_fixeds = buffer.create(length)
 
 	const tag_to_index = {}
@@ -57,6 +58,7 @@ const function tagged<T>(definition: T)
 		struct_writes[i] = s.write
 		struct_reads[i] = s.read
 		struct_sizes[i] = s.size
+		struct_parses[i] = s.parse
 		buffer.writeu8(struct_fixeds, i - 1, typeof(s.size) == "number" and 1 or 0)
 	end
 
@@ -78,6 +80,21 @@ const function tagged<T>(definition: T)
 			const struct_size = struct_sizes[tag_index]
 			const struct_fixed = buffer.readu8(struct_fixeds, tag_index - 1) == 1
 			return BYTE + if struct_fixed then struct_size else struct_size(value)
+		end,
+		parse = function(value: AnyTaggedType)
+			if typeof(value) ~= "table" then
+				return false, "value must be a table"
+			end
+			const tag = value.type
+			const tag_index = tag_to_index[tag]
+			if not tag_index then
+				return false, `invalid tagged union variant '{tostring(tag)}'`
+			end
+			const struct_parse = struct_parses[tag_index]
+			if struct_parse then
+				return struct_parse(value)
+			end
+			return true, nil
 		end,
 	})
 end

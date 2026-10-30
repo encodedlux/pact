@@ -133,25 +133,74 @@ const function build_read_args(args: { DataType }): (buffer, number, { [any]: an
 end
 
 const function build_args_size(args: { DataType }): index<DataType, "size">
-	local fixed_total = 0
-	const variable_indices: { number } = {}
-	const variable_fns: { (any) -> number } = {}
-	for i, value_type in args do
-		const s = value_type.size
-		if type(s) == "number" then
-			fixed_total += s
+	const count = #args
+	if count == 1 then
+		return args[1].size
+	end
+
+	local fixed_args = 0
+	const var_idxs: { number } = {}
+	const var_args_sizes: { (any) -> number } = {}
+	for i = 1, count do
+		const arg_size = args[i].size
+		if type(arg_size) == "number" then
+			fixed_args += arg_size
 		else
-			table.insert(variable_indices, i)
-			table.insert(variable_fns, s :: (any) -> number)
+			table.insert(var_idxs, i)
+			table.insert(var_args_sizes, arg_size)
 		end
 	end
-	if #variable_indices == 0 then
-		return fixed_total
+
+	if #var_idxs == 0 then
+		return fixed_args
 	end
+
+	if count == 2 then
+		const size1: any, size2: any = args[1].size, args[2].size
+		const f1, f2 = type(size1) == "number", type(size2) == "number"
+		return function(a1, a2)
+			return (if f1 then size1 else size1(a1)) + (if f2 then size2 else size2(a2))
+		end
+	elseif count == 3 then
+		const size1: any, size2: any, size3: any = args[1].size, args[2].size, args[3].size
+		const f1, f2, f3 = type(size1) == "number", type(size2) == "number", type(size3) == "number"
+		return function(a1, a2, a3)
+			return (if f1 then size1 else size1(a1))
+				+ (if f2 then size2 else size2(a2))
+				+ (if f3 then size3 else size3(a3))
+		end
+	elseif count == 4 then
+		const size1: any, size2: any, size3: any, size4: any = args[1].size, args[2].size, args[3].size, args[4].size
+		const f1, f2, f3, f4 =
+			type(size1) == "number", type(size2) == "number", type(size3) == "number", type(size4) == "number"
+		return function(a1, a2, a3, a4)
+			return (if f1 then size1 else size1(a1))
+				+ (if f2 then size2 else size2(a2))
+				+ (if f3 then size3 else size3(a3))
+				+ (if f4 then size4 else size4(a4))
+		end
+	elseif count == 5 then
+		const size1: any, size2: any, size3: any, size4: any, size5: any =
+			args[1].size, args[2].size, args[3].size, args[4].size, args[5].size
+		const f1, f2, f3, f4, f5 =
+			type(size1) == "number",
+			type(size2) == "number",
+			type(size3) == "number",
+			type(size4) == "number",
+			type(size5) == "number"
+		return function(a1, a2, a3, a4, a5)
+			return (if f1 then size1 else size1(a1))
+				+ (if f2 then size2 else size2(a2))
+				+ (if f3 then size3 else size3(a3))
+				+ (if f4 then size4 else size4(a4))
+				+ (if f5 then size5 else size5(a5))
+		end
+	end
+
 	return function(...)
-		local total = fixed_total
-		for idx, i in variable_indices do
-			total += variable_fns[idx](select(i, ...))
+		local total = fixed_args
+		for idx, i in var_idxs do
+			total += var_args_sizes[idx](select(i, ...))
 		end
 		return total
 	end

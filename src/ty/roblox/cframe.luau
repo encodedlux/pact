@@ -82,4 +82,10 @@ return create<<CFrame>>({
 		return pos - offset, value
 	end,
 	size = 24,
+	parse = function(value)
+		if typeof(value) ~= "CFrame" then
+			return false, "value must be a CFrame"
+		end
+		return true, nil
+	end,
 })

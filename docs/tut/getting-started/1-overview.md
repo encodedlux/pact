@@ -1,6 +1,6 @@
 # Overview
 
-**Pact** is a modern & declarative buffer networking library for Roblox, offering a high-performance, strictly typed with new solver, and modular model for events, functions, and synchronized state.
+**Pact** is a modern & declarative buffer networking library for Roblox, offering a high-performance, strictly typed architecture using Luau's new type solver for events, functions, and synchronized state.
 
 ## Why Pact?
 

@@ -7,7 +7,7 @@ Pact can be installed through [Wally](https://wally.run/package/encodedlux/pact)
 :::tabs
 ==wally.toml
 ```toml
-pact = "encodedlux/pact@0.1.0"
+pact = "encodedlux/pact@0.1.2"
 ```
 :::
 
@@ -16,7 +16,7 @@ pact = "encodedlux/pact@0.1.0"
 :::tabs
 ==pesde.toml
 ```toml
-pact = { name = "encodedlux/pact", version = "^0.1.0" }
+pact = { name = "encodedlux/pact", version = "^0.1.2" }
 ```
 
 ==pesde-cli

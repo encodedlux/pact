@@ -4,59 +4,65 @@
 const Players = game:GetService("Players")
 const RunService = game:GetService("RunService")
 
-const constants = require("../constants")
 const casing = require("../util/casing")
-const link = require("../runtime/link")
+const compiler = require("../serialization/compiler")
+const constants = require("../constants")
+const link = require("../network/link")
 const queue = require("../util/queue")
-const serdes = require("../runtime/serdes")
 const threads = require("../util/threads")
 const types = require("../types")
+const writer = require("../serialization/writer")
 
 type DataType = types.DataType
-type EventProps = types.EventProps
-type Event<Props, Options> = types.Event<Props, Options>
-type EventServer<Props, Options> = types.EventServer<Props, Options>
-type EventClient<Props, Options> = types.EventClient<Props, Options>
+type EventDecl = types.EventDecl
+type Event<Decl, Options> = types.Event<Decl, Options>
+type EventServer<Decl, Options> = types.EventServer<Decl, Options>
+type EventClient<Decl, Options> = types.EventClient<Decl, Options>
 type DefOptions = types.DefOptions
 type Link = link.Link
-type Queue = queue.Queue
+
+type Queue = {
+	size: number,
+	width: number,
+	cursor: number,
+	data: { any },
+}
 
 const IS_SERVER = RunService:IsServer()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 
+const spawn_callbacks = threads.spawn_callbacks
+const write_many = writer.write_many
 const create_queue = queue.create
-const push = queue.push
+const push_queue = queue.push
 const from_offset_queue = queue.from_offset
 const clear_queue = queue.clear
-const spawn_callbacks = threads.spawn_callbacks
-const write_event_to_players = serdes.write_event_to_players
 
-const function event<Props, Options>(props: Props & EventProps): Event<Props, Options>
-	props = props :: EventProps
-	const from = props.from
+const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options>
+	const decl = decl :: EventDecl
+	const from = decl.from
 	const is_from_server = from == "Server" or from == nil
 	const is_from_client = from == "Client" or from == nil
 	const can_listen = (IS_SERVER and is_from_client) or (not IS_SERVER and is_from_server)
-	const is_reliable = props.type ~= "Unreliable"
+	const is_reliable = decl.type ~= "Unreliable"
 
-	const args: { DataType } = if typeof(props.value) == "function"
-		then { (props :: any).value() }
-		elseif props.value ~= nil then { props.value }
-		else {}
+	const compiled = compiler.compile_args(decl.value)
 
-	const function constructor(options: DefOptions, path: string, lnk: Link)
-		assert(lnk.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: Event "{path}" is already registered`)
-		lnk.registered[path] = true
+	const function constructor(options: DefOptions, path: string, l: Link)
+		assert(l.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: Event "{path}" is already registered`)
+		l.registered[path] = true
 
-		const call = props.call or options.default_call or constants.call.default
+		const call = decl.call or options.default_call or constants.call.default
 		const use_polling = call == "Polling"
 
-		const method_names = casing.get_casing(options.casing)
+		const unreliable_remote = l.transport.unreliable_remote
+		const write_unreliable = l.transport.write_unreliable
 
-		const id = link.next_event_id(lnk, path)
+		const method_names = casing.get_casing(options.casing)
+		const id = link.next_event_id(l, path)
 
 		const listeners: { (...any) -> ...any } = {}
-		const args_count = (if IS_SERVER then 1 else 0) + #args
+		const args_count = (if IS_SERVER then 1 else 0) + #compiled.args
 		const event_queues: { Queue } = {}
 
 		local fire_server, fire_client, fire_all, fire_list, fire_except
@@ -72,7 +78,7 @@ const function event<Props, Options>(props: Props & EventProps): Event<Props, Op
 			then (if use_polling
 				then function(...)
 					for i = 1, #event_queues do
-						push(event_queues[i], ...)
+						push_queue(event_queues[i], ...)
 					end
 				end
 				elseif call == "Sync" then function(...)
@@ -82,57 +88,84 @@ const function event<Props, Options>(props: Props & EventProps): Event<Props, Op
 						end
 						return
 					end
-					push(event_queue, ...)
+					push_queue(event_queue, ...)
 				end
 				else function(...)
 					if #listeners > 0 then
 						spawn_callbacks(listeners, ...)
 						return
 					end
-					push(event_queue, ...)
+					push_queue(event_queue, ...)
 				end)
 			else nil :: any
 
 		if can_listen then
-			lnk.transport.read_fns[id] = serdes.build_read_args(args) :: any
-			lnk.transport.dispatches[id] = dispatch
+			l.transport.reads[id] = compiled.read :: any
+			l.transport.dispatches[id] = dispatch
 		end
 
 		if IS_SERVER then
 			if is_from_server then
-				const write_event = serdes.build_write_event(args, id)
-				const saves = if is_reliable then lnk.transport.players_reliable else lnk.transport.players_unreliable
+				const write_event = compiler.build_write_event(compiled, id)
 
-				fire_server = function(player: Player, ...)
-					const save = saves[player]
-					if not save then
-						warn(
-							debug.traceback(
-								`[{ROOT_SCOPE_NAME}]: Failed to fire to "{player.Name}", they have already left the server.`,
-								2
-							)
-						)
-						return
+				if is_reliable then
+					const player_writers = l.transport.player_writers
+					const out_writer = l.transport.out_writer
+
+					fire_server = function(player: Player, ...)
+						write_event(player_writers[player], ...)
 					end
-					write_event(save, ...)
-				end
-				fire_all = function(...)
-					write_event_to_players(Players:GetPlayers(), saves, write_event, nil, ...)
-				end
-				fire_except = function(except: Player, ...)
-					write_event_to_players(Players:GetPlayers(), saves, write_event, except, ...)
-				end
-				fire_list = function(players: { Player }, ...)
-					write_event_to_players(players, saves, write_event, nil, ...)
+
+					fire_all = function(...)
+						write_event(out_writer, ...)
+					end
+
+					fire_except = function(except: Player, ...)
+						write_many(Players:GetPlayers(), player_writers, write_event, except, ...)
+					end
+
+					fire_list = function(players: { Player }, ...)
+						write_many(players, player_writers, write_event, nil, ...)
+					end
+				else
+					fire_server = function(player: Player, ...)
+						unreliable_remote:FireClient(player, write_unreliable(write_event, ...))
+					end
+
+					fire_all = function(...)
+						unreliable_remote:FireAllClients(write_unreliable(write_event, ...))
+					end
+
+					fire_except = function(except: Player, ...)
+						const buff, refs = write_unreliable(write_event, ...)
+						for _, player in Players:GetPlayers() do
+							if player ~= except then
+								unreliable_remote:FireClient(player, buff, refs)
+							end
+						end
+					end
+
+					fire_list = function(players: { Player }, ...)
+						const buff, refs = write_unreliable(write_event, ...)
+						for _, player in players do
+							unreliable_remote:FireClient(player, buff, refs)
+						end
+					end
 				end
 			end
 		else
 			if is_from_client then
-				const write_event = serdes.build_write_event(args, id)
-				const save = if is_reliable then lnk.transport.client_reliable else lnk.transport.client_unreliable
+				const write_event = compiler.build_write_event(compiled, id)
+				const out_writer = l.transport.out_writer
 
-				fire_client = function(...)
-					write_event(save, ...)
+				if is_reliable then
+					fire_client = function(...)
+						write_event(out_writer, ...)
+					end
+				else
+					fire_client = function(...)
+						unreliable_remote:FireServer(write_unreliable(write_event, ...))
+					end
 				end
 			end
 		end
@@ -203,7 +236,7 @@ const function event<Props, Options>(props: Props & EventProps): Event<Props, Op
 
 	return {
 		type = "event",
-		props = props,
+		decl = decl,
 		constructor = constructor,
 	}
 end

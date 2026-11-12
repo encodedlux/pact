@@ -4,15 +4,15 @@
 const Players = game:GetService("Players")
 const RunService = game:GetService("RunService")
 
-const constants = require("../constants")
 const casing = require("../util/casing")
-const link = require("../runtime/link")
-const serdes = require("../runtime/serdes")
+const compiler = require("../serialization/compiler")
+const constants = require("../constants")
+const link = require("../network/link")
 const ty = require("../ty")
 const types = require("../types")
 
 type Infer<T> = types.Infer<T>
-type StateProps<T> = types.StateProps<T>
+type StateDecl<T> = types.StateDecl<T>
 type State<T> = types.State<T>
 type StateShared<T> = types.StateShared<T>
 type StateServer<T> = types.StateServer<T>
@@ -25,43 +25,37 @@ type Link = link.Link
 const IS_SERVER = RunService:IsServer()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 
-const write_event_to_players = serdes.write_event_to_players
-
 const function is_selector<T, R>(selector: Selector<T, R>): boolean
 	return debug.info(selector, "n") == "selector_oper"
 end
 
-const function state<T>(props: StateProps<T>): State<Infer<T>>
-	const value_type = props.value
-	const initial_value = props.initial
-	const value_args = {
-		ty.tagged({
-			request = {},
-			dispatch = {
-				value = value_type,
-			},
-		}) :: any,
-	}
+const function state<T>(decl: StateDecl<T>): State<Infer<T>>
+	const value_type = decl.value
+	const initial_value = decl.initial
 
-	const function constructor(options: DefOptions, path: string, lnk: Link)
-		assert(lnk.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: State "{path}" is already registered`)
-		lnk.registered[path] = true
+	const compiled = compiler.compile_args(ty.tagged({
+		request = {},
+		dispatch = {
+			value = value_type,
+		},
+	}))
+
+	const function constructor(options: DefOptions, path: string, l: Link)
+		assert(l.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: State "{path}" is already registered`)
+		l.registered[path] = true
+
+		const player_writers = l.transport.player_writers
+		const out_writer = l.transport.out_writer
 
 		const method_names = casing.get_casing(options.casing)
+		const id = link.next_event_id(l, path)
+		const write_state = compiler.build_write_event(compiled, id)
 
-		const id = link.next_event_id(lnk, path)
-
-		const write_state = serdes.build_write_event(value_args, id)
-		const read_args = serdes.build_read_args(value_args)
-
-		lnk.transport.read_fns[id] = read_args :: any
+		l.transport.reads[id] = compiled.read :: any
 
 		local cache = initial_value
 		const subs: { (any) -> () } = {}
-
 		local view: ((player: Player, value: any) -> any)?
-
-		const saves = lnk.transport.players_reliable
 
 		const function notify(new_value)
 			for _, sub in subs do
@@ -80,19 +74,13 @@ const function state<T>(props: StateProps<T>): State<Infer<T>>
 			end
 			if view then
 				for _, player in Players:GetPlayers() do
-					const save = saves[player]
-					if save then
-						write_state(save, { type = "dispatch", value = view(player, new_value) })
+					const w = player_writers[player]
+					if w then
+						write_state(w, { type = "dispatch", value = view(player, new_value) })
 					end
 				end
 			else
-				write_event_to_players(
-					Players:GetPlayers(),
-					saves,
-					write_state,
-					nil,
-					{ type = "dispatch", value = new_value }
-				)
+				write_state(out_writer, { type = "dispatch", value = new_value })
 			end
 		end
 
@@ -168,11 +156,11 @@ const function state<T>(props: StateProps<T>): State<Infer<T>>
 		end :: any
 
 		if IS_SERVER then
-			lnk.transport.dispatches[id] = function(player: Player, data: any)
+			l.transport.dispatches[id] = function(player: Player, data: any)
 				if data.type == "request" then
-					const save = saves[player]
-					if save then
-						write_state(save, {
+					const w = player_writers[player]
+					if w then
+						write_state(w, {
 							type = "dispatch",
 							value = if view then view(player, cache) else cache,
 						})
@@ -180,11 +168,9 @@ const function state<T>(props: StateProps<T>): State<Infer<T>>
 				end
 			end
 		else
-			const save = lnk.transport.client_reliable
+			write_state(out_writer, { type = "request" })
 
-			write_state(save, { type = "request" })
-
-			lnk.transport.dispatches[id] = function(data)
+			l.transport.dispatches[id] = function(data)
 				if data.type == "dispatch" then
 					cache = data.value
 					notify(cache)
@@ -199,15 +185,14 @@ const function state<T>(props: StateProps<T>): State<Infer<T>>
 						if view then
 							warn(
 								debug.traceback(
-									`[{ROOT_SCOPE_NAME}]: State "{path}" already has a client view, the view will be overwritten`,
-									2
+									`State "{path}" already has a client view, the view will be overwritten`
 								)
 							)
 						end
 						view = view_fn
 					end,
 					[method_names["set"]] = function(value_or_cb)
-						if typeof(value_or_cb) == "function" then
+						if type(value_or_cb) == "function" then
 							const new_value = (value_or_cb :: any)(cache)
 							if new_value == false then
 								return

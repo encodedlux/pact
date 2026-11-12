@@ -5,7 +5,7 @@ An event defines how data is sent, which side can fire it, how it is delivered, 
 
 ## Defining an Event
 
-A event is created by calling `event`:
+An event is created by calling `event`:
 ```luau
 return define("game", {
 	my_event = event({
@@ -39,8 +39,8 @@ When `from` is omitted, __both the server and client can fire the event__.
 ### `type`
 Default: `Reliable`
 
-- `Reliable`: Delivery is guaranteed and packets arrive in the order they were sent.
-- `Unreliable`: Packets may be dropped or arrive out of order, and are limited to 900 bytes (Roblox limit).
+- `Reliable`: Delivery is guaranteed and packets arrive in the order they were sent. Calls are batched in a memory buffer and dispatched together once per frame during `flush`.
+- `Unreliable`: Delivery is not guaranteed; packets may be dropped or arrive out of order. Unreliable events are fired **immediately** upon calling `.fire()`.
 
 ### `call`
 Default: `Async`
@@ -51,9 +51,9 @@ Sets how the receiving side consumes the event.
 - `Async` - The listener runs asynchronously and may yield.
 - `Polling` - No listener is registered; events are queued and consumed on demand via `collect()`.
 
-> [!CAUTION]
-> Prefer async calls whenever possible.
-> If a sync listener yields or errors, the events sent together with it may be dropped.
+::: warning
+Prefer async calls whenever possible. If a sync listener yields or errors, subsequent events dispatched in the same frame may be affected.
+:::
 
 ### `value`
 

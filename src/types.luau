@@ -1,45 +1,38 @@
 const casing = require("./util/casing")
 const constants = require("./constants")
+const ty = require("./ty")
 
 export type EventCall = keyof<index<index<constants.Constants, "call">, "values">>
 export type Case = casing.Case
 export type get_casing<T> = casing.get_casing<T>
 
-export type DataType<T = unknown> = {
-	read infer: T,
-	read write: (buff: buffer, offset: number, value: T, refs: { [any]: any }) -> number,
-	read read: (buff: buffer, offset: number, refs: { [any]: any }) -> (number, T),
-	read size: number | (value: T) -> number,
-	read write_array: ((buff: buffer, offset: number, value: { T }, refs: { [any]: any }) -> number)?,
-	read read_array: ((buff: buffer, offset: number, refs: { [any]: any }) -> (number, { T }))?,
-	read size_array: ((value: { T }) -> number)?,
-	read parse: ((value: T) -> (boolean, string?))?,
+export type DataType<T = any> = ty.DataType<T>
+export type Infer<T> = ty.Infer<T>
+export type InferFromFields<T> = ty.infer_from_fields<T>
+export type InferFromTuple<T, I> = ty.infer_from_tuple<T, I>
+
+export type EventDecl = {
+	read from: ("Server" | "Client")?,
+	read type: ("Reliable" | "Unreliable")?,
+	read call: EventCall?,
+	read value: any?,
 }
 
-export type Infer<T> = index<T, "infer">
+export type FunctDecl = {
+	read value: any?,
+	read ret: any?,
+}
 
-export type function InferFromFields(fields: type)
-	assert(fields:is("table"), "expected a table")
-	local result = types.newtable()
-	for key, value in fields:properties() do
-		if value.read then
-			result:setproperty(key, Infer(value.read))
-		end
-	end
-	return result
-end
+export type StateDecl<T> = {
+	read value: T,
+	read initial: Infer<T>,
+}
 
-export type function InferFromTuple(tuple_ty: type, i: type)
-	assert(tuple_ty:is("function"), "expected a t.tuple")
-	const returns = tuple_ty:returns()
-	if i == types.singleton("#") then
-		return types.singleton(tostring(#(returns.head or {})))
-	end
-	const pos = assert(i and i:is("singleton") and tonumber(i:value()), "expected a pos selection")
-	const arg_ty = (returns.head and returns.head[pos :: any]) :: type
-	assert(arg_ty, "pos selection is out of bounds")
-	return Infer(arg_ty)
-end
+export type DefOptions = {
+	read casing: Case?,
+	read default_call: EventCall?,
+	read auto_flush: (true | false)?,
+}
 
 type function data_type_input(ty: type)
 	if not ty then
@@ -59,36 +52,6 @@ type function data_type_input(ty: type)
 	end
 	return types.newfunction({ head = new_head, tail = returns.tail })
 end
-
-export type BufferSave = {
-	size: number,
-	cursor: number,
-	buff: buffer,
-	refs: { any },
-}
-
-export type EventProps = {
-	read from: ("Server" | "Client")?,
-	read type: ("Reliable" | "Unreliable")?,
-	read call: EventCall?,
-	read value: any?,
-}
-
-export type FunctProps = {
-	read value: any?,
-	read ret: any?,
-}
-
-export type StateProps<T> = {
-	read value: T,
-	read initial: Infer<T>,
-}
-
-export type DefOptions = {
-	read casing: Case?,
-	read default_call: EventCall?,
-	read auto_flush: (true | false)?,
-}
 
 type function merge(...: type)
 	const result = types.newtable()
@@ -141,10 +104,10 @@ type CollectOnClient<T...> = {
 	collect: () -> (() -> (number, T...), Cleanup),
 }
 
-export type function EventServer(props: type, options: type)
-	const from = props:readproperty(types.singleton("from"))
-	const value = props:readproperty(types.singleton("value")) or types.singleton(nil)
-	const call = props:readproperty(types.singleton("call"))
+export type function EventServer(decl: type, options: type)
+	const from = decl:readproperty(types.singleton("from"))
+	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const call = decl:readproperty(types.singleton("call"))
 	const default_call = options:is("table") and options:readproperty(types.singleton("default_call"))
 	const use_polling = (call == types.singleton("Polling")) or (default_call == types.singleton("Polling"))
 	const value_args = data_type_input(value):parameters().head or {}
@@ -162,10 +125,10 @@ export type function EventServer(props: type, options: type)
 	return result
 end
 
-export type function EventClient(props: type, options: type)
-	const from = props:readproperty(types.singleton("from"))
-	const value = props:readproperty(types.singleton("value")) or types.singleton(nil)
-	const call = props:readproperty(types.singleton("call"))
+export type function EventClient(decl: type, options: type)
+	const from = decl:readproperty(types.singleton("from"))
+	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const call = decl:readproperty(types.singleton("call"))
 	const default_call = options:is("table") and options:readproperty(types.singleton("default_call"))
 	const use_polling = (call == types.singleton("Polling")) or (default_call == types.singleton("Polling"))
 	const value_args = data_type_input(value):parameters().head or {}
@@ -183,26 +146,26 @@ export type function EventClient(props: type, options: type)
 	return result
 end
 
-export type EventConstructor<Props = EventProps, Options = DefOptions> = (
+export type EventConstructor<Decl = EventDecl, Options = DefOptions> = (
 	options: Options & DefOptions,
 	path: string,
-	lnk: any
+	l: any
 ) -> {
-	server: EventServer<Props, Options>,
-	client: EventClient<Props, Options>,
+	server: EventServer<Decl, Options>,
+	client: EventClient<Decl, Options>,
 }
 
-export type Event<Props = EventProps, Options = DefOptions> = {
+export type Event<Decl = EventDecl, Options = DefOptions> = {
 	type: "event",
-	props: Props,
-	constructor: EventConstructor<Props, Options>,
+	decl: Decl,
+	constructor: EventConstructor<Decl, Options>,
 }
 
 type player = Player
 
-export type function FunctServer(props: type)
-	const value = props:readproperty(types.singleton("value")) or types.singleton(nil)
-	const ret = props:readproperty(types.singleton("ret")) or types.singleton(nil)
+export type function FunctServer(decl: type)
+	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const ret = decl:readproperty(types.singleton("ret")) or types.singleton(nil)
 	const value_params = data_type_input(value):parameters()
 	const ret_params = data_type_input(ret):parameters()
 	const result = types.newtable()
@@ -216,9 +179,9 @@ export type function FunctServer(props: type)
 	return result
 end
 
-export type function FunctClient(props: type)
-	const value = props:readproperty(types.singleton("value")) or types.singleton(nil)
-	const ret = props:readproperty(types.singleton("ret")) or types.singleton(nil)
+export type function FunctClient(decl: type)
+	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const ret = decl:readproperty(types.singleton("ret")) or types.singleton(nil)
 	const value_params = data_type_input(value):parameters()
 	const ret_params = data_type_input(ret):parameters()
 	const result = types.newtable()
@@ -226,19 +189,15 @@ export type function FunctClient(props: type)
 	return result
 end
 
-export type FunctConstructor<Props = FunctProps> = (
-	options: DefOptions,
-	path: string,
-	lnk: any
-) -> {
-	server: FunctServer<Props>,
-	client: FunctClient<Props>,
+export type FunctConstructor<Decl = FunctDecl> = (options: DefOptions, path: string, l: any) -> {
+	server: FunctServer<Decl>,
+	client: FunctClient<Decl>,
 }
 
-export type Funct<Props = FunctProps> = {
+export type Funct<Decl = FunctDecl> = {
 	type: "function",
-	props: Props,
-	constructor: FunctConstructor<Props>,
+	decl: Decl,
+	constructor: FunctConstructor<Decl>,
 }
 
 export type Selector<T, R> = (value: T) -> R
@@ -247,8 +206,7 @@ export type Cleanup = () -> ()
 export type StateShared<T> = {
 	selector: (<R>(selector: (value: T, prev: R?) -> R) -> Selector<T, R>)
 		& (<RI, R0>(selectorA: Selector<T, RI>, selectorB: (value: RI, prev: R0?) -> R0) -> Selector<T, R0>),
-	on: ((callback: (new: T, prev: T?) -> ()) -> Cleanup)
-		& (<R>(selector: Selector<T, R>, callback: (new: R, prev: R?) -> ()) -> Cleanup),
+	on: ((callback: (new: T, prev: T?) -> ()) -> Cleanup) & (<R>(selector: Selector<T, R>, callback: (new: R, prev: R?) -> ()) -> Cleanup),
 	get: (() -> T) & (<R>(selector: Selector<T, R>) -> R),
 }
 
@@ -262,11 +220,7 @@ export type StateServer<T> = {
 
 export type StateClient<T> = StateShared<T>
 
-export type StateConstructor<T = unknown> = (
-	options: DefOptions,
-	path: string,
-	lnk: any
-) -> {
+export type StateConstructor<T = unknown> = (options: DefOptions, path: string, l: any) -> {
 	server: StateServer<T>,
 	client: StateClient<T>,
 }
@@ -298,14 +252,14 @@ type function resolve_objects(objects: type, options: type, from: type)
 			const kind = ty:readproperty(types.singleton("type"))
 			local ret: type?
 			if kind == types.singleton("event") then
-				const props = ty:readproperty(types.singleton("props"))
-				const constructor_fn: type = EventConstructor(props, options)
+				const decl = ty:readproperty(types.singleton("decl"))
+				const constructor_fn: type = EventConstructor(decl, options)
 				const ctor_returns = constructor_fn:returns()
 				const object = ctor_returns and ctor_returns.head and ctor_returns.head[1] :: type?
 				ret = object and object:readproperty(types.singleton(is_server and "server" or "client"))
 			elseif kind == types.singleton("function") then
-				const props = ty:readproperty(types.singleton("props"))
-				const constructor_fn: type = FunctConstructor(props)
+				const decl = ty:readproperty(types.singleton("decl"))
+				const constructor_fn: type = FunctConstructor(decl)
 				const ctor_returns = constructor_fn:returns()
 				const object = ctor_returns and ctor_returns.head and ctor_returns.head[1] :: type?
 				ret = object and object:readproperty(types.singleton(is_server and "server" or "client"))

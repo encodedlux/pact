@@ -49,8 +49,7 @@ export default defineConfig({
             { text: "Events", link: "/tut/guide/2-events" },
             { text: "Functs", link: "/tut/guide/3-functs" },
             { text: "States", link: "/tut/guide/4-states" },
-            { text: "Scopes", link: "/tut/guide/5-scopes" },
-            { text: "Types", link: "/tut/guide/6-types" },
+            { text: "Types", link: "/tut/guide/5-types" },
           ]
         }
       ]

@@ -4,10 +4,7 @@
 const RunService = game:GetService("RunService")
 
 const constants = require("../constants")
-const queue = require("../util/queue")
 const transport = require("./transport")
-
-type Queue = queue.Queue
 
 export type Link = {
 	registered: { [string]: true },
@@ -23,14 +20,14 @@ const ROOT_SCRIPT = constants.ROOT_SCRIPT
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 const MAX_EVENT_IDS = 256
 
-const function next_event_id(lnk: Link, name: string): number
+const function next_event_id(l: Link, name: string): number
 	const attribute = name .. "_event_id"
 	if IS_SERVER then
-		const id = lnk.next_id
+		const id = l.next_id
 		if id >= MAX_EVENT_IDS then
 			error(`[{ROOT_SCOPE_NAME}]: Max number of events reached.`)
 		end
-		lnk.next_id += 1
+		l.next_id += 1
 		ROOT_SCRIPT:SetAttribute(attribute, id)
 		return id
 	end

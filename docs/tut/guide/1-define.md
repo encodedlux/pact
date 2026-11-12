@@ -59,15 +59,38 @@ Default: `Async`
 Options: `Async`, `Sync`, `Polling`
 
 ### `auto_flush`
-Reliable and Unreliable calls are combined into a single delivery once per frame. When set to `false`, the automatic send is disabled and you become responsible for calling `flush()` — exposed on both `.server` and `.client`.
+Reliable events, functions, and state changes are combined into a single delivery once per frame (flushed automatically during `RunService.PostSimulation`). Unreliable events are fired immediately.
+
+When set to `false`, automatic frame flushing is disabled and you become responsible for calling `flush()` — exposed on both `.server` and `.client`.
 
 Default: `true`
 
 Server:
 ```luau
-RunService.Heartbeat:Connect(net_server.flush) -- delivers every event/funct manually
+RunService.PostSimulation:Connect(net_server.flush) -- delivers queued reliable events, functs, and states manually
 ```
 Client:
 ```luau
-RunService.Heartbeat:Connect(net_client.flush) -- delivers every event/funct manually
+RunService.PostSimulation:Connect(net_client.flush) -- delivers queued reliable events, functs, and states manually
+```
+
+## Scopes
+Scopes nest related objects under a shared table, both in the definition file and in the resulting API.
+
+```luau
+return define("game", {
+	example_scope = {
+		my_event = event({
+			value = t.string,
+		}),
+	},
+})
+```
+
+### Usage
+
+```luau
+const net_server = net.server
+
+net_server.example_scope.my_event.fire_all("Hello World")
 ```

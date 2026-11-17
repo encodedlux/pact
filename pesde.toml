@@ -1,5 +1,5 @@
 name = "encodedlux/pact"
-version = "0.1.2"
+version = "0.1.3"
 description = "A modern & declarative buffer networking."
 authors = ["encodedlux"]
 repository = "https://github.com/encodedlux/pact"

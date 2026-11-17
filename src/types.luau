@@ -10,6 +10,7 @@ export type DataType<T = any> = ty.DataType<T>
 export type Infer<T> = ty.Infer<T>
 export type InferFromFields<T> = ty.infer_from_fields<T>
 export type InferFromTuple<T, I> = ty.infer_from_tuple<T, I>
+type infer_getter<T> = ty.infer_getter<T>
 
 export type EventDecl = {
 	read from: ("Server" | "Client")?,
@@ -34,23 +35,8 @@ export type DefOptions = {
 	read auto_flush: (true | false)?,
 }
 
-type function data_type_input(ty: type)
-	if not ty then
-		return types.newfunction()
-	end
-	if ty:is("table") then
-		return types.newfunction({ head = { Infer(ty) } })
-	end
-	if not ty:is("function") then
-		return types.newfunction()
-	end
-	const returns = ty:returns()
-	const head = returns.head or {}
-	const new_head = {}
-	for i, value in head do
-		new_head[i] = Infer(value)
-	end
-	return types.newfunction({ head = new_head, tail = returns.tail })
+type function infer_pack(value_ty: type?): { type }
+	return infer_getter(value_ty):returns().head or {}
 end
 
 type function merge(...: type)
@@ -106,20 +92,20 @@ type CollectOnClient<T...> = {
 
 export type function EventServer(decl: type, options: type)
 	const from = decl:readproperty(types.singleton("from"))
-	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const value = decl:readproperty(types.singleton("value"))
 	const call = decl:readproperty(types.singleton("call"))
 	const default_call = options:is("table") and options:readproperty(types.singleton("default_call"))
 	const use_polling = (call == types.singleton("Polling")) or (default_call == types.singleton("Polling"))
-	const value_args = data_type_input(value):parameters().head or {}
+	const value_pack = infer_pack(value)
 	local result = types.newtable()
 	if from ~= types.singleton("Client") then
-		result = merge(result, FireOnServer(table.unpack(value_args)))
+		result = merge(result, FireOnServer(table.unpack(value_pack)))
 	end
 	if from ~= types.singleton("Server") then
 		if use_polling then
-			result = merge(result, CollectOnServer(table.unpack(value_args)))
+			result = merge(result, CollectOnServer(table.unpack(value_pack)))
 		else
-			result = merge(result, ListenOnServer(table.unpack(value_args)))
+			result = merge(result, ListenOnServer(table.unpack(value_pack)))
 		end
 	end
 	return result
@@ -127,20 +113,20 @@ end
 
 export type function EventClient(decl: type, options: type)
 	const from = decl:readproperty(types.singleton("from"))
-	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
+	const value = decl:readproperty(types.singleton("value"))
 	const call = decl:readproperty(types.singleton("call"))
 	const default_call = options:is("table") and options:readproperty(types.singleton("default_call"))
 	const use_polling = (call == types.singleton("Polling")) or (default_call == types.singleton("Polling"))
-	const value_args = data_type_input(value):parameters().head or {}
+	const value_pack = infer_pack(value)
 	local result = types.newtable()
 	if from ~= types.singleton("Server") then
-		result = merge(result, FireOnClient(table.unpack(value_args)))
+		result = merge(result, FireOnClient(table.unpack(value_pack)))
 	end
 	if from ~= types.singleton("Client") then
 		if use_polling then
-			result = merge(result, CollectOnClient(table.unpack(value_args)))
+			result = merge(result, CollectOnClient(table.unpack(value_pack)))
 		else
-			result = merge(result, ListenOnClient(table.unpack(value_args)))
+			result = merge(result, ListenOnClient(table.unpack(value_pack)))
 		end
 	end
 	return result
@@ -164,28 +150,26 @@ export type Event<Decl = EventDecl, Options = DefOptions> = {
 type player = Player
 
 export type function FunctServer(decl: type)
-	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
-	const ret = decl:readproperty(types.singleton("ret")) or types.singleton(nil)
-	const value_params = data_type_input(value):parameters()
-	const ret_params = data_type_input(ret):parameters()
+	const value = decl:readproperty(types.singleton("value"))
+	const ret = decl:readproperty(types.singleton("ret"))
+	const value_pack = infer_pack(value)
+	const ret_pack = infer_pack(ret)
 	const result = types.newtable()
 	const head = { player }
-	if value_params.head then
-		table.move(value_params.head, 1, #value_params.head, #head + 1, head)
-	end
-	const cb_fn = types.newfunction({ head = head }, ret_params)
+	table.move(value_pack, 1, #value_pack, #head + 1, head)
+	const cb_fn = types.newfunction({ head = head }, { head = ret_pack })
 	const disconnect_fn = types.newfunction()
 	result:setproperty(types.singleton("on"), types.newfunction({ head = { cb_fn } }, { head = { disconnect_fn } }))
 	return result
 end
 
 export type function FunctClient(decl: type)
-	const value = decl:readproperty(types.singleton("value")) or types.singleton(nil)
-	const ret = decl:readproperty(types.singleton("ret")) or types.singleton(nil)
-	const value_params = data_type_input(value):parameters()
-	const ret_params = data_type_input(ret):parameters()
+	const value = decl:readproperty(types.singleton("value"))
+	const ret = decl:readproperty(types.singleton("ret"))
+	const value_pack = infer_pack(value)
+	const ret_pack = infer_pack(ret)
 	const result = types.newtable()
-	result:setproperty(types.singleton("invoke"), types.newfunction(value_params, ret_params))
+	result:setproperty(types.singleton("invoke"), types.newfunction({ head = value_pack }, { head = ret_pack }))
 	return result
 end
 

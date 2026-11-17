@@ -31,6 +31,7 @@ type Queue = {
 const IS_SERVER = RunService:IsServer()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 
+const spawn = threads.spawn
 const spawn_callbacks = threads.spawn_callbacks
 const write_many = writer.write_many
 const create_queue = queue.create
@@ -61,24 +62,25 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 		const method_names = casing.get_casing(options.casing)
 		const id = link.next_event_id(l, path)
 
-		const listeners: { (...any) -> ...any } = {}
 		const args_count = (if IS_SERVER then 1 else 0) + #compiled.args
-		const event_queues: { Queue } = {}
+		const listeners: { (...any) -> ...any } = {}
+		const polling_queues: { Queue } = {}
 
-		local fire_server, fire_client, fire_all, fire_list, fire_except
+		local fire_client, fire_all, fire_list, fire_except
+		local fire_server
 		local on, collect
 
-		local event_queue: Queue
+		local dispatch_queue: Queue
 		if can_listen and not use_polling then
-			event_queue = create_queue(args_count)
-			event_queues[1] = event_queue
+			dispatch_queue = create_queue(args_count)
 		end
 
-		const dispatch: (...any) -> () = if can_listen
-			then (if use_polling
+		if can_listen then
+			l.transport.reads[id] = compiled.read :: any
+			l.transport.dispatches[id] = if use_polling
 				then function(...)
-					for i = 1, #event_queues do
-						push_queue(event_queues[i], ...)
+					for i = 1, #polling_queues do
+						push_queue(polling_queues[i], ...)
 					end
 				end
 				elseif call == "Sync" then function(...)
@@ -88,20 +90,15 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 						end
 						return
 					end
-					push_queue(event_queue, ...)
+					push_queue(dispatch_queue, ...)
 				end
 				else function(...)
 					if #listeners > 0 then
 						spawn_callbacks(listeners, ...)
 						return
 					end
-					push_queue(event_queue, ...)
-				end)
-			else nil :: any
-
-		if can_listen then
-			l.transport.reads[id] = compiled.read :: any
-			l.transport.dispatches[id] = dispatch
+					push_queue(dispatch_queue, ...)
+				end
 		end
 
 		if IS_SERVER then
@@ -112,8 +109,13 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 					const player_writers = l.transport.player_writers
 					const out_writer = l.transport.out_writer
 
-					fire_server = function(player: Player, ...)
-						write_event(player_writers[player], ...)
+					fire_client = function(player: Player, ...)
+						const w = player_writers[player]
+						if not w then
+							warn(debug.traceback(`[{ROOT_SCOPE_NAME}]: Failed to fire to "{player.Name}", they have already left the server.`))
+							return
+						end
+						write_event(w, ...)
 					end
 
 					fire_all = function(...)
@@ -128,7 +130,7 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 						write_many(players, player_writers, write_event, nil, ...)
 					end
 				else
-					fire_server = function(player: Player, ...)
+					fire_client = function(player: Player, ...)
 						unreliable_remote:FireClient(player, write_unreliable(write_event, ...))
 					end
 
@@ -159,11 +161,11 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 				const out_writer = l.transport.out_writer
 
 				if is_reliable then
-					fire_client = function(...)
+					fire_server = function(...)
 						write_event(out_writer, ...)
 					end
 				else
-					fire_client = function(...)
+					fire_server = function(...)
 						unreliable_remote:FireServer(write_unreliable(write_event, ...))
 					end
 				end
@@ -171,19 +173,25 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 		end
 
 		if can_listen and not use_polling then
-			on = function(callback)
-				table.insert(listeners, callback)
+			on = function(listener: any)
+				table.insert(listeners, listener)
 
-				const size = event_queue.size
+				const size = dispatch_queue.size
 				if size > 0 then
-					for i = 1, size do
-						dispatch(from_offset_queue(event_queue, i))
+					if call == "Sync" then
+						for i = 1, size do
+							listener(from_offset_queue(dispatch_queue, i))
+						end
+					elseif call == "Async" then
+						for i = 1, size do
+							spawn(listener, from_offset_queue(dispatch_queue, i))
+						end
 					end
-					clear_queue(event_queue)
+					clear_queue(dispatch_queue)
 				end
 
 				return function()
-					const idx = table.find(listeners, callback)
+					const idx = table.find(listeners, listener)
 					if idx then
 						table.remove(listeners, idx)
 					end
@@ -194,7 +202,7 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 		if can_listen and use_polling then
 			collect = function()
 				const polling_queue = create_queue(args_count)
-				table.insert(event_queues, polling_queue)
+				table.insert(polling_queues, polling_queue)
 
 				return function()
 					const offset = polling_queue.cursor + 1
@@ -208,9 +216,9 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 					polling_queue.cursor = offset
 					return offset, from_offset_queue(polling_queue, offset)
 				end, function()
-					local idx = table.find(event_queues, polling_queue)
+					local idx = table.find(polling_queues, polling_queue)
 					if idx then
-						table.remove(event_queues, idx)
+						table.remove(polling_queues, idx)
 						clear_queue(polling_queue)
 					end
 				end
@@ -219,7 +227,7 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 
 		return {
 			server = {
-				[method_names["fire"]] = fire_server,
+				[method_names["fire"]] = fire_client,
 				[method_names["fire_all"]] = fire_all,
 				[method_names["fire_list"]] = fire_list,
 				[method_names["fire_except"]] = fire_except,
@@ -227,7 +235,7 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 				[method_names["collect"]] = collect,
 			},
 			client = {
-				[method_names["fire"]] = fire_client,
+				[method_names["fire"]] = fire_server,
 				[method_names["on"]] = on,
 				[method_names["collect"]] = collect,
 			},

@@ -14,8 +14,8 @@ type Writer = writer.Writer
 export type Transport = {
 	reads: { (...any) -> (number, ...any) },
 	dispatches: { (...any) -> () },
-	player_writers: { [Player]: Writer },
-	out_writer: Writer,
+	player_writers: { [Player]: Writer }, -- reliable player writers
+	out_writer: Writer, -- writer for server-side broadcast clients or client-side send
 	unreliable_remote: UnreliableRemoteEvent,
 	write_unreliable: (write_event: (w: Writer, ...any) -> (), ...any) -> (buffer, { [any]: any }?),
 	flush: (() -> ())?,

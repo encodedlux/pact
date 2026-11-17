@@ -7,7 +7,6 @@ const casing = require("../util/casing")
 const compiler = require("../serialization/compiler")
 const constants = require("../constants")
 const link = require("../network/link")
-const threads = require("../util/threads")
 const types = require("../types")
 
 type DataType = types.DataType
@@ -22,17 +21,9 @@ type CompiledArgs = compiler.CompiledArgs
 const IS_SERVER = RunService:IsServer()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 
-const spawn = threads.spawn
-
 const readu8 = buffer.readu8
 
-const function build_funct_on(
-	path: string,
-	l: Link,
-	id: number,
-	compiled_value: CompiledArgs,
-	compiled_ret: CompiledArgs
-)
+const function build_funct_on(path: string, l: Link, id: number, compiled_value: CompiledArgs, compiled_ret: CompiledArgs)
 	const write_funct_ret = compiler.build_write_funct_ret(compiled_ret, id)
 	const read_args = compiled_value.read
 
@@ -40,7 +31,7 @@ const function build_funct_on(
 
 	local listener: (...any) -> ...any
 
-	const function run_dispatch(w, invocation_id: number, success: boolean, ...)
+	const function run_dispatch(w, invocation_id, success, ...)
 		if not w then
 			return
 		end
@@ -56,13 +47,10 @@ const function build_funct_on(
 		return result_read_return(invocation_id, read_args(buff, offset + 1, refs))
 	end
 
-	l.transport.dispatches[id] = function(...)
+	l.transport.dispatches[id] = function(player, invocation_id, ...)
 		if listener then
-			spawn(function(player, invocation_id, ...)
-				run_dispatch(player_writers[player], invocation_id, pcall(listener, player, ...))
-			end, ...)
+			run_dispatch(player_writers[player], invocation_id, pcall(listener, player, ...))
 		else
-			const player, invocation_id = ...
 			const w = player_writers[player]
 			if w then
 				write_funct_ret(w, invocation_id, false)
@@ -92,6 +80,13 @@ const function build_funct_invoke(l: Link, id: number, compiled_value: CompiledA
 		return 2 + bytes, success, invocation_id, ...
 	end
 
+	const function result_invoke_return(success: boolean, ...)
+		if not success then
+			error(`There was an exception while processing a response on the Server.`, 2)
+		end
+		return ...
+	end
+
 	l.transport.reads[id] = function(buff, offset, refs)
 		const invocation_id = readu8(buff, offset)
 		const success = readu8(buff, offset + 1) == 1
@@ -111,13 +106,6 @@ const function build_funct_invoke(l: Link, id: number, compiled_value: CompiledA
 				task.spawn(thread, success, ...)
 			end
 		end
-	end
-
-	const function result_invoke_return(success: boolean, ...)
-		if not success then
-			error(`There was an exception while processing a response on the Server.`, 2)
-		end
-		return ...
 	end
 
 	return function(...)

@@ -58,7 +58,7 @@ const function deep_equal(a: any, b: any): boolean
 end
 
 const function roundtrip<T>(value_type: T, value: Infer<T>): Infer<T>
-	const compiled = compiler.compile_args<<(Infer<T>)>>(value_type)
+	const compiled = compiler.compile_args<<any>>(value_type)
 	const expected_size = compiled.fixed_size or compiled.get_size(value)
 	const buff, refs = buffer.create(expected_size), {}
 

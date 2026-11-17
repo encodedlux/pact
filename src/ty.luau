@@ -26,14 +26,43 @@ end
 
 export type function infer_from_tuple(tuple_ty: type, i: type)
 	assert(tuple_ty:is("function"), "expected a t.tuple")
+	const function infer(value_ty)
+		const ok, result = pcall(Infer, value_ty)
+		return if ok then result else value_ty
+	end
 	const returns = tuple_ty:returns()
+	const head = returns.head or {}
 	if i == types.singleton("#") then
-		return types.singleton(tostring(#(returns.head or {})))
+		return types.singleton(tostring(#head))
+	elseif i == types.singleton("i") then
+		const output = types.newtable()
+		for idx, param in head do
+			output:setproperty(types.singleton(`{idx}`), infer(param))
+		end
+		return output
 	end
 	const pos = assert(i and i:is("singleton") and tonumber(i:value()), "expected a pos selection")
-	const arg_ty = (returns.head and returns.head[pos :: any]) :: type
+	const arg_ty = head[pos]
 	assert(arg_ty, "pos selection is out of bounds")
-	return Infer(arg_ty)
+	return infer(arg_ty)
+end
+
+export type function infer_getter(value_ty: type?)
+	if value_ty then
+		if value_ty.tag == "function" then
+			const returns = value_ty:returns()
+			const head = returns.head or {}
+			const args_infer = {}
+			for i = 1, #head do
+				const arg = head[i]
+				args_infer[i] = Infer(arg)
+			end
+			return types.newfunction({}, { head = args_infer })
+		elseif value_ty.tag == "table" then
+			return types.newfunction({}, { head = { Infer(value_ty) } })
+		end
+	end
+	return types.newfunction()
 end
 
 type function enum_auto_complete(ty: type)
@@ -792,10 +821,7 @@ const function build_struct_write(keys: { string }, fields: { [string]: DataType
 			return pos - offset
 		end
 	end
-	const writes = table.create<<index<DataType, "write">>>(count)
-	for idx, key in keys do
-		writes[idx] = fields[key].write
-	end
+	const rest_write = build_struct_write(table.move(keys, 6, #keys, 1, {}), fields)
 	return function(buff, offset, value, refs)
 		local pos = offset
 		pos += write1(buff, pos, value[k1], refs)
@@ -803,9 +829,7 @@ const function build_struct_write(keys: { string }, fields: { [string]: DataType
 		pos += write3(buff, pos, value[k3], refs)
 		pos += write4(buff, pos, value[k4], refs)
 		pos += write5(buff, pos, value[k5], refs)
-		for i = 6, count do
-			pos += writes[i](buff, pos, value[keys[i]], refs)
-		end
+		pos += rest_write(buff, pos, value, refs)
 		return pos - offset
 	end
 end
@@ -1209,7 +1233,7 @@ const intersect: Intersect = function(...)
 	})
 end
 
-const tuple: tuple<"10"> = function(...)
+const tuple: tuple<"20"> = function(...)
 	const args = table.pack(...)
 	return function()
 		return table.unpack(args, 1, args.n)

@@ -9,21 +9,26 @@ const constants = require("../constants")
 const link = require("../network/link")
 const types = require("../types")
 
-type DataType = types.DataType
 type FunctDecl = types.FunctDecl
 type Funct<Decl> = types.Funct<Decl>
-type FunctServer<Decl> = types.FunctServer<Decl>
-type FunctClient<Decl> = types.FunctClient<Decl>
 type DefOptions = types.DefOptions
 type Link = link.Link
 type CompiledArgs = compiler.CompiledArgs
 
 const IS_SERVER = RunService:IsServer()
+const IS_RUNNING = RunService:IsRunning()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
+const NOOP = function() end
 
 const readu8 = buffer.readu8
 
-const function build_funct_on(path: string, l: Link, id: number, compiled_value: CompiledArgs, compiled_ret: CompiledArgs)
+const function build_funct_on(
+	path: string,
+	l: Link,
+	id: number,
+	compiled_value: CompiledArgs,
+	compiled_ret: CompiledArgs
+)
 	const write_funct_ret = compiler.build_write_funct_ret(compiled_ret, id)
 	const read_args = compiled_value.read
 
@@ -73,7 +78,7 @@ const function build_funct_invoke(l: Link, id: number, compiled_value: CompiledA
 	const write_funct_invoke = compiler.build_write_funct_invoke(compiled_value, id)
 	const read_args = compiled_ret.read
 
-	const out_writer = l.transport.out_writer
+	const client_writer = l.transport.client_writer
 	const invocations = l.invocations
 
 	const function result_read_return(invocation_id: number, success: boolean, bytes: number, ...)
@@ -115,7 +120,7 @@ const function build_funct_invoke(l: Link, id: number, compiled_value: CompiledA
 		l.invocations_top -= 1
 		const invocation_id = buffer.readu8(l.invocations_stack, l.invocations_top)
 		invocations[invocation_id] = coroutine.running()
-		write_funct_invoke(out_writer, invocation_id, ...)
+		write_funct_invoke(client_writer, invocation_id, ...)
 		return result_invoke_return(coroutine.yield())
 	end
 end
@@ -130,6 +135,18 @@ const function funct<Decl>(decl: Decl & FunctDecl): Funct<Decl>
 		l.registered[path] = true
 
 		const method_names = casing.get_casing(options.casing)
+
+		if not IS_RUNNING then
+			return {
+				server = {
+					[method_names["on"]] = NOOP,
+				},
+				client = {
+					[method_names["invoke"]] = NOOP,
+				},
+			} :: any
+		end
+
 		const id = link.next_event_id(l, path)
 
 		return {

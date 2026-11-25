@@ -13,23 +13,16 @@ const threads = require("../util/threads")
 const types = require("../types")
 const writer = require("../serialization/writer")
 
-type DataType = types.DataType
 type EventDecl = types.EventDecl
 type Event<Decl, Options> = types.Event<Decl, Options>
-type EventServer<Decl, Options> = types.EventServer<Decl, Options>
-type EventClient<Decl, Options> = types.EventClient<Decl, Options>
 type DefOptions = types.DefOptions
 type Link = link.Link
-
-type Queue = {
-	size: number,
-	width: number,
-	cursor: number,
-	data: { any },
-}
+type Queue = queue.Queue
 
 const IS_SERVER = RunService:IsServer()
+const IS_RUNNING = RunService:IsRunning()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
+const NOOP = function() end
 
 const spawn = threads.spawn
 const spawn_callbacks = threads.spawn_callbacks
@@ -53,13 +46,33 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 		assert(l.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: Event "{path}" is already registered`)
 		l.registered[path] = true
 
+		const method_names = casing.get_casing(options.casing)
+
+		if not IS_RUNNING then
+			return {
+				server = {
+					[method_names["fire"]] = NOOP,
+					[method_names["fire_all"]] = NOOP,
+					[method_names["fire_list"]] = NOOP,
+					[method_names["fire_except"]] = NOOP,
+					[method_names["on"]] = NOOP,
+					[method_names["collect"]] = NOOP,
+				},
+				client = {
+					[method_names["fire"]] = NOOP,
+					[method_names["on"]] = NOOP,
+					[method_names["collect"]] = NOOP,
+				},
+			} :: any
+		end
+
 		const call = decl.call or options.default_call or constants.call.default
 		const use_polling = call == "Polling"
 
+		const player_writers = l.transport.player_writers
 		const unreliable_remote = l.transport.unreliable_remote
 		const write_unreliable = l.transport.write_unreliable
 
-		const method_names = casing.get_casing(options.casing)
 		const id = link.next_event_id(l, path)
 
 		const args_count = (if IS_SERVER then 1 else 0) + #compiled.args
@@ -106,20 +119,21 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 				const write_event = compiler.build_write_event(compiled, id)
 
 				if is_reliable then
-					const player_writers = l.transport.player_writers
-					const out_writer = l.transport.out_writer
-
 					fire_client = function(player: Player, ...)
 						const w = player_writers[player]
 						if not w then
-							warn(debug.traceback(`[{ROOT_SCOPE_NAME}]: Failed to fire to "{player.Name}", they have already left the server.`))
+							warn(
+								debug.traceback(
+									`[{ROOT_SCOPE_NAME}]: Failed to fire to "{player.Name}", they have already left the server.`
+								)
+							)
 							return
 						end
 						write_event(w, ...)
 					end
 
 					fire_all = function(...)
-						write_event(out_writer, ...)
+						write_many(Players:GetPlayers(), player_writers, write_event, nil, ...)
 					end
 
 					fire_except = function(except: Player, ...)
@@ -158,11 +172,11 @@ const function event<Decl, Options>(decl: Decl & EventDecl): Event<Decl, Options
 		else
 			if is_from_client then
 				const write_event = compiler.build_write_event(compiled, id)
-				const out_writer = l.transport.out_writer
+				const client_writer = l.transport.client_writer
 
 				if is_reliable then
 					fire_server = function(...)
-						write_event(out_writer, ...)
+						write_event(client_writer, ...)
 					end
 				else
 					fire_server = function(...)

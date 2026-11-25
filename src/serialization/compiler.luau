@@ -62,7 +62,8 @@ const function build_write_args(args: { DataType }): index<CompiledArgs, "write"
 		end
 	end
 
-	const write1, write2, write3, write4, write5 = args[1].write, args[2].write, args[3].write, args[4].write, args[5].write
+	const write1, write2, write3, write4, write5 =
+		args[1].write, args[2].write, args[3].write, args[4].write, args[5].write
 	if count == 5 then
 		return function(buff, offset, refs, a1, a2, a3, a4, a5)
 			local pos = offset
@@ -213,13 +214,24 @@ const function build_args_size(args: { DataType }): index<CompiledArgs, "fixed_s
 		const idx1, idx2, idx3, idx4 = dyn_indices[1], dyn_indices[2], dyn_indices[3], dyn_indices[4]
 		const s1, s2, s3, s4 = dyn_args_sizes[1], dyn_args_sizes[2], dyn_args_sizes[3], dyn_args_sizes[4]
 		return function(...)
-			return static_args + s1(select(idx1, ...)) + s2(select(idx2, ...)) + s3(select(idx3, ...)) + s4(select(idx4, ...))
+			return static_args
+				+ s1(select(idx1, ...))
+				+ s2(select(idx2, ...))
+				+ s3(select(idx3, ...))
+				+ s4(select(idx4, ...))
 		end
 	elseif dyn_count == 5 then
-		const idx1, idx2, idx3, idx4, idx5 = dyn_indices[1], dyn_indices[2], dyn_indices[3], dyn_indices[4], dyn_indices[5]
-		const s1, s2, s3, s4, s5 = dyn_args_sizes[1], dyn_args_sizes[2], dyn_args_sizes[3], dyn_args_sizes[4], dyn_args_sizes[5]
+		const idx1, idx2, idx3, idx4, idx5 =
+			dyn_indices[1], dyn_indices[2], dyn_indices[3], dyn_indices[4], dyn_indices[5]
+		const s1, s2, s3, s4, s5 =
+			dyn_args_sizes[1], dyn_args_sizes[2], dyn_args_sizes[3], dyn_args_sizes[4], dyn_args_sizes[5]
 		return function(...)
-			return static_args + s1(select(idx1, ...)) + s2(select(idx2, ...)) + s3(select(idx3, ...)) + s4(select(idx4, ...)) + s5(select(idx5, ...))
+			return static_args
+				+ s1(select(idx1, ...))
+				+ s2(select(idx2, ...))
+				+ s3(select(idx3, ...))
+				+ s4(select(idx4, ...))
+				+ s5(select(idx5, ...))
 		end
 	end
 	return function(...)

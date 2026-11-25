@@ -15,18 +15,20 @@ export type Transport = {
 	reads: { (...any) -> (number, ...any) },
 	dispatches: { (...any) -> () },
 	player_writers: { [Player]: Writer }, -- reliable player writers
-	out_writer: Writer, -- writer for server-side broadcast clients or client-side send
+	client_writer: Writer, -- reliable client writer
 	unreliable_remote: UnreliableRemoteEvent,
 	write_unreliable: (write_event: (w: Writer, ...any) -> (), ...any) -> (buffer, { [any]: any }?),
 	flush: (() -> ())?,
 }
 
 const IS_SERVER = RunService:IsServer()
+const IS_RUNNING = RunService:IsRunning()
 
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
 const ROOT_SCRIPT = constants.ROOT_SCRIPT
 const FOLDER_NAME = ROOT_SCOPE_NAME .. "Remotes"
 const EMPTY_REFS = { cursor = 0 }
+const NOOP = function() end
 
 const function get_root_folder(parent: Instance): Instance
 	if not IS_SERVER then
@@ -100,14 +102,26 @@ const function get_remotes(name: string)
 end
 
 const function transport(namespace: string, auto_flush: boolean?): Transport
+	if not IS_RUNNING then
+		return {
+			reads = {},
+			dispatches = {},
+			player_writers = {},
+			client_writer = nil,
+			unreliable_remote = nil,
+			write_unreliable = NOOP,
+			flush = NOOP,
+		} :: any
+	end
+
 	const reliable_remote, unreliable_remote = get_remotes(namespace)
 
 	const reads = table.create<<(...any) -> (number, ...any)>>(256)
 	const dispatches = table.create<<(...any) -> ()>>(256)
 
 	local player_writers: { [Player]: Writer }
-	const out_writer = writer.create()
 	const unreliable_writer = writer.create()
+	local client_writer: Writer
 
 	local flush
 
@@ -174,18 +188,6 @@ const function transport(namespace: string, auto_flush: boolean?): Transport
 		end
 
 		flush = function()
-			const cursor = out_writer.cursor
-			if cursor > 0 then
-				const refs = out_writer.refs
-				const has_refs = #refs > 0
-				const buff = buffer.create(cursor)
-				buffer.copy(buff, 0, out_writer.buff, 0, cursor)
-				reliable_remote:FireAllClients(buff, if has_refs then refs else nil)
-				out_writer.cursor = 0
-				if has_refs then
-					table.clear(refs)
-				end
-			end
 			for player, w in player_writers do
 				const cursor = w.cursor
 				if cursor > 0 then
@@ -205,15 +207,17 @@ const function transport(namespace: string, auto_flush: boolean?): Transport
 		reliable_remote.OnServerEvent:Connect(on_incoming)
 		unreliable_remote.OnServerEvent:Connect(on_incoming)
 	else
+		client_writer = writer.create()
+
 		flush = function()
-			const cursor = out_writer.cursor
+			const cursor = client_writer.cursor
 			if cursor > 0 then
-				const refs = out_writer.refs
+				const refs = client_writer.refs
 				const has_refs = #refs > 0
 				const buff = buffer.create(cursor)
-				buffer.copy(buff, 0, out_writer.buff, 0, cursor)
+				buffer.copy(buff, 0, client_writer.buff, 0, cursor)
 				reliable_remote:FireServer(buff, if has_refs then refs else nil)
-				out_writer.cursor = 0
+				client_writer.cursor = 0
 				if has_refs then
 					table.clear(refs)
 				end
@@ -235,7 +239,7 @@ const function transport(namespace: string, auto_flush: boolean?): Transport
 		reads = reads,
 		dispatches = dispatches,
 		player_writers = player_writers,
-		out_writer = out_writer,
+		client_writer = client_writer,
 		unreliable_remote = unreliable_remote,
 		write_unreliable = write_unreliable,
 		flush = if auto_flush == false then flush else nil,

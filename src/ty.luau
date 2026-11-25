@@ -126,7 +126,13 @@ type Intersect =
 	(<A, B>(A & {}, B & {}) -> DataType<Infer<A> & Infer<B>>)
 	& (<A, B, C>(A & {}, B & {}, C & {}) -> DataType<Infer<A> & Infer<B> & Infer<C>>)
 	& (<A, B, C, D>(A & {}, B & {}, C & {}, D & {}) -> DataType<Infer<A> & Infer<B> & Infer<C> & Infer<D>>)
-	& (<A, B, C, D, E>(A & {}, B & {}, C & {}, D & {}, E & {}) -> DataType<Infer<A> & Infer<B> & Infer<C> & Infer<D> & Infer<E>>)
+	& (<A, B, C, D, E>(
+		A & {},
+		B & {},
+		C & {},
+		D & {},
+		E & {}
+	) -> DataType<Infer<A> & Infer<B> & Infer<C> & Infer<D> & Infer<E>>)
 
 type function tuple(max_args: type)
 	const count = max_args:is("singleton") and tonumber(max_args:value())
@@ -292,7 +298,9 @@ const f16 = create<<number>>({
 			const rounded_value = (absValue // interval) * interval
 			local fraction, exponent = math.frexp(rounded_value)
 			exponent += 14
-			const mantissa = math.round(if exponent <= 0 then fraction * 0x400 / math.ldexp(1, math.abs(exponent)) else fraction * 0x800) % 0x400
+			const mantissa = math.round(
+				if exponent <= 0 then fraction * 0x400 / math.ldexp(1, math.abs(exponent)) else fraction * 0x800
+			) % 0x400
 
 			const result = mantissa + math.max(exponent, 0) * 0x400 + if value < 0 then 0x8000 else 0
 
@@ -375,7 +383,7 @@ const string_ty = create<<string>>({
 	read = function(buff, offset)
 		const len = buffer.readu16(buff, offset)
 		if offset + 2 + len > buffer.len(buff) then
-			return 2, ""
+			error(`Failed to read string, buffer is too small`)
 		end
 		return 2 + len, buffer.readstring(buff, offset + 2, len)
 	end,
@@ -395,7 +403,7 @@ const buffer_ty = create<<buffer>>({
 	read = function(buff, offset)
 		const len = buffer.readu16(buff, offset)
 		if offset + 2 + len > buffer.len(buff) then
-			return 2, buffer.create(0)
+			error(`Failed to read buffer, buffer is too small`)
 		end
 		const new_buff = buffer.create(len)
 		buffer.copy(new_buff, 0, buff, offset + 2, len)
@@ -430,7 +438,7 @@ const none = create<<nil>>({
 })
 
 const vec = create<<vector>>({
-	type = "vector",
+	type = "Vector3",
 	write = function(buff, offset, value)
 		buffer.writef32(buff, offset, value.x)
 		buffer.writef32(buff, offset + 4, value.y)
@@ -438,7 +446,12 @@ const vec = create<<vector>>({
 		return 12
 	end,
 	read = function(buff, offset)
-		return 12, vector.create(buffer.readf32(buff, offset), buffer.readf32(buff, offset + 4), buffer.readf32(buff, offset + 8))
+		return 12,
+			vector.create(
+				buffer.readf32(buff, offset),
+				buffer.readf32(buff, offset + 4),
+				buffer.readf32(buff, offset + 8)
+			)
 	end,
 	size = 12,
 })
@@ -467,7 +480,12 @@ const vec3 = create<<Vector3>>({
 		return 12
 	end,
 	read = function(buff, offset)
-		return 12, Vector3.new(buffer.readf32(buff, offset), buffer.readf32(buff, offset + 4), buffer.readf32(buff, offset + 8))
+		return 12,
+			Vector3.new(
+				buffer.readf32(buff, offset),
+				buffer.readf32(buff, offset + 4),
+				buffer.readf32(buff, offset + 8)
+			)
 	end,
 	size = 12,
 })
@@ -513,7 +531,12 @@ const color3 = create<<Color3>>({
 		return 3
 	end,
 	read = function(buff, offset)
-		return 3, Color3.fromRGB(buffer.readu8(buff, offset), buffer.readu8(buff, offset + 1), buffer.readu8(buff, offset + 2))
+		return 3,
+			Color3.fromRGB(
+				buffer.readu8(buff, offset),
+				buffer.readu8(buff, offset + 1),
+				buffer.readu8(buff, offset + 2)
+			)
 	end,
 	size = 3,
 })
@@ -652,6 +675,9 @@ const function array<T>(value_type: T)
 		end,
 		read = function(buff, offset, refs)
 			const len = buffer.readu16(buff, offset)
+			if offset + 2 + len > buffer.len(buff) then
+				error(`Failed to read array, buffer is too small`)
+			end
 			const array = table.create<<any>>(len)
 			local pos = offset + 2
 			for i = 1, len do
@@ -688,6 +714,9 @@ const function set<K>(key_type: K)
 		read = function(buff, offset, refs)
 			local pos = offset + 2
 			const len = buffer.readu16(buff, offset)
+			if offset + 2 + len > buffer.len(buff) then
+				error(`Failed to read set, buffer is too small`)
+			end
 			const result = {}
 			for _ = 1, len do
 				const key_length, key = key_read(buff, pos, refs)
@@ -809,7 +838,8 @@ const function build_struct_write(keys: { string }, fields: { [string]: DataType
 		end
 	end
 	const k1, k2, k3, k4, k5 = keys[1], keys[2], keys[3], keys[4], keys[5]
-	const write1, write2, write3, write4, write5 = fields[k1].write, fields[k2].write, fields[k3].write, fields[k4].write, fields[k5].write
+	const write1, write2, write3, write4, write5 =
+		fields[k1].write, fields[k2].write, fields[k3].write, fields[k4].write, fields[k5].write
 	if count == 5 then
 		return function(buff, offset, value, refs)
 			local pos = offset
@@ -897,7 +927,8 @@ const function build_struct_read(keys: { string }, fields: { [string]: DataType 
 		end
 	end
 	const k1, k2, k3, k4, k5 = keys[1], keys[2], keys[3], keys[4], keys[5]
-	const read1, read2, read3, read4, read5 = fields[k1].read, fields[k2].read, fields[k3].read, fields[k4].read, fields[k5].read
+	const read1, read2, read3, read4, read5 =
+		fields[k1].read, fields[k2].read, fields[k3].read, fields[k4].read, fields[k5].read
 	if count == 5 then
 		return function(buff, offset, refs)
 			local pos = offset
@@ -911,13 +942,14 @@ const function build_struct_read(keys: { string }, fields: { [string]: DataType 
 			pos += len4
 			const len5, val5 = read5(buff, pos, refs)
 			pos += len5
-			return pos - offset, {
-				[k1] = val1,
-				[k2] = val2,
-				[k3] = val3,
-				[k4] = val4,
-				[k5] = val5,
-			}
+			return pos - offset,
+				{
+					[k1] = val1,
+					[k2] = val2,
+					[k3] = val3,
+					[k4] = val4,
+					[k5] = val5,
+				}
 		end
 	end
 	const reads = table.create<<index<DataType, "read">>>(count)

@@ -15,8 +15,12 @@ const function yielder()
 end
 
 const function spawn<T...>(f: (T...) -> (), ...: T...)
-	local thread = table.remove(free_threads) :: thread
-	if not thread then
+	local thread
+	const len = #free_threads
+	if len > 0 then
+		thread = free_threads[len]
+		free_threads[len] = nil
+	else
 		thread = coroutine.create(yielder)
 		coroutine.resume(thread)
 	end
@@ -24,13 +28,17 @@ const function spawn<T...>(f: (T...) -> (), ...: T...)
 end
 
 const function spawn_callbacks<T...>(callbacks: { (T...) -> () }, ...: T...)
-	for i = 1, #callbacks do
-		local thread = table.remove(free_threads) :: thread
-		if not thread then
+	for _, f in callbacks do
+		local thread
+		const len = #free_threads
+		if len > 0 then
+			thread = free_threads[len]
+			free_threads[len] = nil
+		else
 			thread = coroutine.create(yielder)
 			coroutine.resume(thread)
 		end
-		task.spawn(thread, callbacks[i], thread, ...)
+		task.spawn(thread, f, thread, ...)
 	end
 end
 

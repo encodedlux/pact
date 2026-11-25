@@ -36,7 +36,7 @@ export type DefOptions = {
 }
 
 type function infer_pack(value_ty: type?): { type }
-	return infer_getter(value_ty):returns().head or {}
+	return infer_getter(value_ty or types.singleton(nil)):returns().head or {}
 end
 
 type function merge(...: type)
@@ -173,7 +173,11 @@ export type function FunctClient(decl: type)
 	return result
 end
 
-export type FunctConstructor<Decl = FunctDecl> = (options: DefOptions, path: string, l: any) -> {
+export type FunctConstructor<Decl = FunctDecl> = (
+	options: DefOptions,
+	path: string,
+	l: any
+) -> {
 	server: FunctServer<Decl>,
 	client: FunctClient<Decl>,
 }
@@ -190,7 +194,8 @@ export type Cleanup = () -> ()
 export type StateShared<T> = {
 	selector: (<R>(selector: (value: T, prev: R?) -> R) -> Selector<T, R>)
 		& (<RI, R0>(selectorA: Selector<T, RI>, selectorB: (value: RI, prev: R0?) -> R0) -> Selector<T, R0>),
-	on: ((callback: (new: T, prev: T?) -> ()) -> Cleanup) & (<R>(selector: Selector<T, R>, callback: (new: R, prev: R?) -> ()) -> Cleanup),
+	on: ((callback: (new: T, prev: T?) -> ()) -> Cleanup)
+		& (<R>(selector: Selector<T, R>, callback: (new: R, prev: R?) -> ()) -> Cleanup),
 	get: (() -> T) & (<R>(selector: Selector<T, R>) -> R),
 }
 
@@ -204,7 +209,11 @@ export type StateServer<T> = {
 
 export type StateClient<T> = StateShared<T>
 
-export type StateConstructor<T = unknown> = (options: DefOptions, path: string, l: any) -> {
+export type StateConstructor<T = unknown> = (
+	options: DefOptions,
+	path: string,
+	l: any
+) -> {
 	server: StateServer<T>,
 	client: StateClient<T>,
 }

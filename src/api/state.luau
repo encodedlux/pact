@@ -10,6 +10,7 @@ const constants = require("../constants")
 const link = require("../network/link")
 const ty = require("../ty")
 const types = require("../types")
+const writer = require("../serialization/writer")
 
 type Infer<T> = types.Infer<T>
 type StateDecl<T> = types.StateDecl<T>
@@ -23,7 +24,11 @@ type Cleanup = types.Cleanup
 type Link = link.Link
 
 const IS_SERVER = RunService:IsServer()
+const IS_RUNNING = RunService:IsRunning()
 const ROOT_SCOPE_NAME = constants.ROOT_SCOPE_NAME
+const NOOP = function() end
+
+const write_many = writer.write_many
 
 const function is_selector<T, R>(selector: Selector<T, R>): boolean
 	return debug.info(selector, "n") == "selector_oper"
@@ -44,14 +49,32 @@ const function state<T>(decl: StateDecl<T>): State<Infer<T>>
 		assert(l.registered[path] == nil, `[{ROOT_SCOPE_NAME}]: State "{path}" is already registered`)
 		l.registered[path] = true
 
-		const player_writers = l.transport.player_writers
-		const out_writer = l.transport.out_writer
-
 		const method_names = casing.get_casing(options.casing)
+
+		if not IS_RUNNING then
+			return {
+				server = {
+					[method_names["set_client_view"]] = NOOP,
+					[method_names["set"]] = NOOP,
+					[method_names["selector"]] = NOOP,
+					[method_names["on"]] = NOOP,
+					[method_names["get"]] = NOOP,
+				},
+				client = {
+					[method_names["selector"]] = NOOP,
+					[method_names["on"]] = NOOP,
+					[method_names["get"]] = NOOP,
+				},
+			} :: any
+		end
+
+		const player_writers = l.transport.player_writers
+		const client_writer = l.transport.client_writer
+
 		const id = link.next_event_id(l, path)
 		const write_state = compiler.build_write_event(compiled, id)
 
-		l.transport.reads[id] = compiled.read :: any
+		l.transport.reads[id] = compiled.read
 
 		local cache = initial_value
 		const subs: { (any) -> () } = {}
@@ -73,14 +96,17 @@ const function state<T>(decl: StateDecl<T>): State<Infer<T>>
 				return
 			end
 			if view then
-				for _, player in Players:GetPlayers() do
-					const w = player_writers[player]
-					if w then
-						write_state(w, { type = "dispatch", value = view(player, new_value) })
-					end
+				for player, w in player_writers do
+					write_state(w, { type = "dispatch", value = view(player, new_value) })
 				end
 			else
-				write_state(out_writer, { type = "dispatch", value = new_value })
+				write_many(
+					Players:GetPlayers(),
+					player_writers,
+					write_state,
+					nil,
+					{ type = "dispatch", value = new_value }
+				)
 			end
 		end
 
@@ -168,7 +194,7 @@ const function state<T>(decl: StateDecl<T>): State<Infer<T>>
 				end
 			end
 		else
-			write_state(out_writer, { type = "request" })
+			write_state(client_writer, { type = "request" })
 
 			l.transport.dispatches[id] = function(data)
 				if data.type == "dispatch" then

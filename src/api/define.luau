@@ -9,8 +9,6 @@ const types = require("../types")
 
 type DefOptions = types.DefOptions
 type Define<Objects, Options> = types.Define<Objects, Options>
-type ServerObjects<Objects, Options> = types.ServerObjects<Objects, Options>
-type ClientObjects<Objects, Options> = types.ClientObjects<Objects, Options>
 type Link = link.Link
 
 type DefObjects = {
@@ -18,6 +16,7 @@ type DefObjects = {
 }
 
 const IS_SERVER = RunService:IsServer()
+const IS_RUNNING = RunService:IsRunning()
 
 const names_cache: { [string]: true } = {}
 
@@ -37,10 +36,6 @@ const function define<Objects, Options>(
 	local returns: any
 
 	const function resolve_objects()
-		if returns then
-			return returns
-		end
-
 		const function resolve_objects_recursive(node: DefObjects, path: string, l: Link): any
 			if type(node.constructor) == "function" then
 				const object = node.constructor(opt, path, l)
@@ -60,27 +55,18 @@ const function define<Objects, Options>(
 		return table.freeze(returns)
 	end
 
-	const function def_server(): ServerObjects<Objects, Options>
-		if not IS_SERVER then
-			error(`Server def can only be accessed from the server.`)
-		end
-		return resolve_objects()
-	end
-
-	const function def_client(): ClientObjects<Objects, Options>
-		if IS_SERVER then
-			error(`Client def can only be accessed from the client.`)
-		end
-		return resolve_objects()
-	end
-
 	return setmetatable({}, {
-		__index = function(_, key): ServerObjects<Objects, Options> | ClientObjects<Objects, Options>
+		__index = function(_, key)
 			if key == "server" then
-				return def_server()
-			end
-			if key == "client" then
-				return def_client()
+				if IS_RUNNING and not IS_SERVER then
+					error(`Server def can only be accessed from the server.`)
+				end
+				return if returns then returns else resolve_objects()
+			elseif key == "client" then
+				if IS_RUNNING and IS_SERVER then
+					error(`Client def can only be accessed from the client.`)
+				end
+				return if returns then returns else resolve_objects()
 			end
 			error(`Key "{key}" not found in "{name}".`)
 		end,
